@@ -1,0 +1,33 @@
+# Modified from https://github.com/github/gitignore/blob/master/Go.gitignore
+
+
+## Go
+
+# Binaries for programs and plugins
+wait-for
+!wait-for/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Dependency directories
+vendor/
+
+# Local workspace directory
+.workspace
+
+
+## Misc
+
+.envrc
+.DS_Store
+*.swp
+*.swo
