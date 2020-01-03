@@ -1,0 +1,9 @@
+# Config file for automatic testing at travis-ci.org
+
+language: go
+
+go:
+  - "1.13"
+
+script:
+  - "go test -race -v ./wait"
