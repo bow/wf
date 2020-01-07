@@ -59,7 +59,7 @@ func Execute() error {
 				}
 			}
 
-			msg := wait.WaitAllTCP(cfgs, waitTimeout, statusFreq, isQuiet)
+			msg := wait.AllTCP(cfgs, waitTimeout, statusFreq, isQuiet)
 			if msg.Err != nil {
 				if !isQuiet {
 					fmt.Printf("ERROR: %s\n", msg.Err)

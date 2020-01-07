@@ -5,16 +5,16 @@ import (
 	"sync"
 )
 
-// WaitStatus enumerates possible waiting status.
-type WaitStatus int
+// Status enumerates possible waiting status.
+type Status int
 
 const (
-	Waiting WaitStatus = iota
+	Waiting Status = iota
 	Ready
 	Failed
 )
 
-func (ws WaitStatus) String() string {
+func (ws Status) String() string {
 	return [...]string{"waiting", "ready", "failed"}[ws]
 }
 

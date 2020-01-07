@@ -5,11 +5,11 @@ import (
 	"testing"
 )
 
-func TestWaitStatusString(t *testing.T) {
+func TestStatusString(t *testing.T) {
 	t.Parallel()
 	var tests = []struct {
 		name string
-		in   WaitStatus
+		in   Status
 		exp  string
 	}{
 		{"Waiting", Waiting, "waiting"},

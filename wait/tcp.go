@@ -11,7 +11,7 @@ import (
 // TCPWaitMessage is a container for a wait operation result.
 type TCPWaitMessage struct {
 	// Status is the status of the waiting operation.
-	Status WaitStatus
+	Status Status
 	// Addr is the address being waited.
 	Addr string
 	// Start is the start time of the wait operation.
@@ -50,14 +50,14 @@ func ShouldWait(err error) bool {
 	return false
 }
 
-// WaitSingleTCP waits until a TCP connection can be made to the given address. It runs
+// SingleTCP waits until a TCP connection can be made to the given address. It runs
 // indefinitely, emitting messages to two channels: `chWaiting` while still waiting and `chReady`
 // when the wait has finished. The check frequency is controlled by `checkFreq`, while every
 // `statusFreq` a status message is emitted. The timeout for the server reply is determined by
 // `replyTimeout`. A `startTime` may be given a nonzero value, which is useful when tracking
 // multiple wait operations launched within a short period. If its value is equal to the zero time,
 // the current time is used.
-func WaitSingleTCP(
+func SingleTCP(
 	addr string,
 	chWaiting chan TCPWaitMessage,
 	chReady chan TCPWaitMessage,
@@ -123,8 +123,8 @@ type TCPInputConfig struct {
 	ReplyTimeout time.Duration
 }
 
-// WaitAllTCP waits until connections can be made to all given TCP addresses.
-func WaitAllTCP(
+// AllTCP waits until connections can be made to all given TCP addresses.
+func AllTCP(
 	configs []*TCPInputConfig,
 	waitTimeout time.Duration,
 	statusFreq time.Duration,
@@ -163,7 +163,7 @@ func WaitAllTCP(
 	}
 
 	for _, config := range configs {
-		go WaitSingleTCP(
+		go SingleTCP(
 			config.Addr,
 			waiting,
 			ready,
