@@ -1,9 +1,6 @@
 package wait
 
-import (
-	"fmt"
-	"testing"
-)
+import "testing"
 
 func TestStatusString(t *testing.T) {
 	t.Parallel()
@@ -22,7 +19,7 @@ func TestStatusString(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			exp := test.exp
-			obs := fmt.Sprintf("%s", test.in)
+			obs := test.in.String()
 			if obs != exp {
 				t.Errorf("%v - got: %q, want: %q", test.name, obs, exp)
 			}
@@ -77,6 +74,7 @@ func TestMaxLength(t *testing.T) {
 	}
 
 	for i, test := range tests {
+		i := i
 		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
@@ -105,6 +103,7 @@ func TestMkFmtVerb(t *testing.T) {
 	}
 
 	for i, test := range tests {
+		i := i
 		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()

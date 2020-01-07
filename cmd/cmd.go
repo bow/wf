@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -32,7 +31,7 @@ func Execute() error {
 
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
-				return errors.New("at least one address must be specified")
+				return fmt.Errorf("at least one address must be specified")
 			}
 			return nil
 		},

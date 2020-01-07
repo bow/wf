@@ -85,10 +85,10 @@ func SingleTCP(
 
 		if ShouldWait(err) {
 			return true
-		} else {
-			chReady <- TCPWaitMessage{Failed, addr, startTime, time.Now(), err}
-			return false
 		}
+
+		chReady <- TCPWaitMessage{Failed, addr, startTime, time.Now(), err}
+		return false
 	}
 
 	// So that we start polling immediately, without waiting for the first tick.
