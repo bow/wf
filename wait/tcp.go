@@ -18,7 +18,7 @@ type TCPWaitMessage struct {
 	StartTime time.Time
 	// Time is the time the status was emitted.
 	EmitTime time.Time
-	// Err is any possible errors that have occured.
+	// Err is any possible errors that have occurred.
 	Err error
 }
 
