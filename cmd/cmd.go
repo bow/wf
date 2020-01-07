@@ -48,15 +48,15 @@ func Execute() error {
 			// TODO: Update raw address syntax to set this.
 			checkFreq := 500 * time.Millisecond
 
-			cfgs := make([]*wait.TCPInputConfig, len(addrs))
+			specs := make([]*wait.TCPSpec, len(addrs))
 			for i, addr := range addrs {
-				cfgs[i] = &wait.TCPInputConfig{
+				specs[i] = &wait.TCPSpec{
 					Addr:      addr,
 					CheckFreq: checkFreq,
 				}
 			}
 
-			msg := wait.AllTCP(cfgs, waitTimeout, statusFreq, isQuiet)
+			msg := wait.AllTCP(specs, waitTimeout, statusFreq, isQuiet)
 			if msg.Err != nil {
 				if !isQuiet {
 					fmt.Printf("ERROR: %s\n", msg.Err)

@@ -112,8 +112,8 @@ func SingleTCP(
 	}
 }
 
-// TCPInputConfig represents the inputs to a single wait operation for TCP addresses.
-type TCPInputConfig struct {
+// TCPSpec represents the input specification of a single TCP wait operation.
+type TCPSpec struct {
 	// Addr is the address being waited.
 	Addr string
 	// CheckFreq is how often a connection is attempted.
@@ -122,7 +122,7 @@ type TCPInputConfig struct {
 
 // AllTCP waits until connections can be made to all given TCP addresses.
 func AllTCP(
-	configs []*TCPInputConfig,
+	specs []*TCPSpec,
 	waitTimeout time.Duration,
 	statusFreq time.Duration,
 	isQuiet bool,
@@ -130,9 +130,9 @@ func AllTCP(
 
 	// Initialize a slice of addresses; used for initializing a pending set and determining padding
 	// when printing.
-	addrs := make([]string, len(configs))
-	for i, config := range configs {
-		addrs[i] = config.Addr
+	addrs := make([]string, len(specs))
+	for i, spec := range specs {
+		addrs[i] = spec.Addr
 	}
 
 	var (
@@ -159,15 +159,8 @@ func AllTCP(
 		}
 	}
 
-	for _, config := range configs {
-		go SingleTCP(
-			config.Addr,
-			waiting,
-			ready,
-			config.CheckFreq,
-			statusFreq,
-			startTime,
-		)
+	for _, spec := range specs {
+		go SingleTCP(spec.Addr, waiting, ready, spec.CheckFreq, statusFreq, startTime)
 	}
 
 	for {
