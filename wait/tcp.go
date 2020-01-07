@@ -50,18 +50,17 @@ func ShouldWait(err error) bool {
 	return false
 }
 
-// SingleTCP waits until a TCP connection can be made to the given address. It runs
-// indefinitely, emitting messages to two channels: `chWaiting` while still waiting and `chReady`
-// when the wait has finished. The check frequency is controlled by `checkFreq`, while every
-// `statusFreq` a status message is emitted. The timeout for the server reply is determined by
-// `replyTimeout`. A `startTime` may be given a nonzero value, which is useful when tracking
+// SingleTCP waits until a TCP connection can be made to the given address. It runs indefinitely,
+// emitting messages to two channels: `chWaiting` while still waiting and `chReady` when the wait
+// has finished. The check frequency is controlled by `checkFreq`, while every `statusFreq` a status
+// message is emitted A `startTime` may be given a nonzero value, which is useful when tracking
 // multiple wait operations launched within a short period. If its value is equal to the zero time,
 // the current time is used.
 func SingleTCP(
 	addr string,
 	chWaiting chan TCPWaitMessage,
 	chReady chan TCPWaitMessage,
-	checkFreq, statusFreq, replyTimeout time.Duration,
+	checkFreq, statusFreq time.Duration,
 	startTime time.Time,
 ) {
 
@@ -76,7 +75,7 @@ func SingleTCP(
 	defer statusTicker.Stop()
 
 	check := func() bool {
-		_, err := net.DialTimeout("tcp", addr, replyTimeout)
+		_, err := net.DialTimeout("tcp", addr, checkFreq)
 
 		if err == nil {
 			chReady <- TCPWaitMessage{Ready, addr, startTime, time.Now(), nil}
@@ -119,8 +118,6 @@ type TCPInputConfig struct {
 	Addr string
 	// CheckFreq is how often a connection is attempted.
 	CheckFreq time.Duration
-	// ReplyTimeout is how long to wait for a reply from the server before erroring out.
-	ReplyTimeout time.Duration
 }
 
 // AllTCP waits until connections can be made to all given TCP addresses.
@@ -169,7 +166,6 @@ func AllTCP(
 			ready,
 			config.CheckFreq,
 			statusFreq,
-			config.ReplyTimeout,
 			startTime,
 		)
 	}

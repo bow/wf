@@ -46,15 +46,13 @@ func Execute() error {
 			}
 
 			// TODO: Update raw address syntax to set this.
-			checkFreq := 300 * time.Millisecond
-			replyTimeout := 500 * time.Millisecond
+			checkFreq := 500 * time.Millisecond
 
 			cfgs := make([]*wait.TCPInputConfig, len(addrs))
 			for i, addr := range addrs {
 				cfgs[i] = &wait.TCPInputConfig{
-					Addr:         addr,
-					CheckFreq:    checkFreq,
-					ReplyTimeout: replyTimeout,
+					Addr:      addr,
+					CheckFreq: checkFreq,
 				}
 			}
 
