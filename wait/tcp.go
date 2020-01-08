@@ -52,7 +52,7 @@ func ShouldWait(err error) bool {
 
 // SingleTCP waits until a TCP connection can be made to the given address. It runs indefinitely,
 // emitting messages to two channels: `chWaiting` while still waiting and `chReady` when the wait
-// has finished. The check frequency is controlled by `checkFreq`, while every `statusFreq` a status
+// has finished. The check frequency is controlled by `pollFreq`, while every `statusFreq` a status
 // message is emitted A `startTime` may be given a nonzero value, which is useful when tracking
 // multiple wait operations launched within a short period. If its value is equal to the zero time,
 // the current time is used.
@@ -60,7 +60,7 @@ func SingleTCP(
 	addr string,
 	chWaiting chan TCPWaitMessage,
 	chReady chan TCPWaitMessage,
-	checkFreq, statusFreq time.Duration,
+	pollFreq, statusFreq time.Duration,
 	startTime time.Time,
 ) {
 
@@ -68,14 +68,14 @@ func SingleTCP(
 		startTime = time.Now()
 	}
 
-	pollTicker := time.NewTicker(checkFreq)
+	pollTicker := time.NewTicker(pollFreq)
 	defer pollTicker.Stop()
 
 	statusTicker := time.NewTicker(statusFreq)
 	defer statusTicker.Stop()
 
 	check := func() bool {
-		_, err := net.DialTimeout("tcp", addr, checkFreq)
+		_, err := net.DialTimeout("tcp", addr, pollFreq)
 
 		if err == nil {
 			chReady <- TCPWaitMessage{Ready, addr, startTime, time.Now(), nil}
@@ -116,8 +116,8 @@ func SingleTCP(
 type TCPSpec struct {
 	// Addr is the address being waited.
 	Addr string
-	// CheckFreq is how often a connection is attempted.
-	CheckFreq time.Duration
+	// PollFreq is how often a connection is attempted.
+	PollFreq time.Duration
 }
 
 // AllTCP waits until connections can be made to all given TCP addresses.
@@ -160,7 +160,7 @@ func AllTCP(
 	}
 
 	for _, spec := range specs {
-		go SingleTCP(spec.Addr, waiting, ready, spec.CheckFreq, statusFreq, startTime)
+		go SingleTCP(spec.Addr, waiting, ready, spec.PollFreq, statusFreq, startTime)
 	}
 
 	for {

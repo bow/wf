@@ -19,6 +19,7 @@ const (
 func Execute() error {
 	var (
 		waitTimeout time.Duration
+		pollFreq    time.Duration
 		statusFreq  time.Duration
 		isQuiet     bool
 	)
@@ -45,14 +46,11 @@ func Execute() error {
 				addrs = args[:dashIdx]
 			}
 
-			// TODO: Update raw address syntax to set this.
-			checkFreq := 500 * time.Millisecond
-
 			specs := make([]*wait.TCPSpec, len(addrs))
 			for i, addr := range addrs {
 				specs[i] = &wait.TCPSpec{
-					Addr:      addr,
-					CheckFreq: checkFreq,
+					Addr:     addr,
+					PollFreq: pollFreq,
 				}
 			}
 
@@ -69,9 +67,12 @@ func Execute() error {
 		},
 	}
 
-	cmd.Flags().DurationVarP(&waitTimeout, "timeout", "t", 5*time.Second, "set wait timeout")
-	cmd.Flags().DurationVarP(&statusFreq, "status-freq", "s", 1*time.Second, "set status message frequency")
-	cmd.Flags().BoolVarP(&isQuiet, "quiet", "q", false, "suppress waiting messages")
+	flagSet := cmd.Flags()
+	flagSet.SortFlags = false
+	flagSet.DurationVarP(&waitTimeout, "timeout", "t", 5*time.Second, "set wait timeout")
+	flagSet.DurationVarP(&pollFreq, "poll-freq", "f", 500*time.Millisecond, "set connection poll frequency")
+	flagSet.DurationVarP(&statusFreq, "status-freq", "s", 1*time.Second, "set status message frequency")
+	flagSet.BoolVarP(&isQuiet, "quiet", "q", false, "suppress waiting messages")
 
 	return cmd.Execute()
 }
