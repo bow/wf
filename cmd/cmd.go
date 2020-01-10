@@ -48,10 +48,12 @@ func Execute() error {
 
 			specs := make([]*wait.TCPSpec, len(addrs))
 			for i, addr := range addrs {
-				specs[i] = &wait.TCPSpec{
-					Addr:     addr,
-					PollFreq: pollFreq,
+				spec, err := wait.ParseTCPSpec(addr, pollFreq)
+				if err != nil {
+					fmt.Printf("ERROR: %s\n", err)
+					os.Exit(1)
 				}
+				specs[i] = spec
 			}
 
 			msg := wait.AllTCP(specs, waitTimeout, statusFreq, isQuiet)

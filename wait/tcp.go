@@ -4,8 +4,28 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"regexp"
+	"strings"
 	"syscall"
 	"time"
+)
+
+var (
+	addrPattern = regexp.MustCompile(
+		"^(?P<schema>(?P<proto>[A-Za-z]+)://)?(?P<host>[^#]+)(#(?P<freq>.+))?",
+	)
+	protoPort = map[string]string{
+		"amqp":  "5672",
+		"amqps": "5671",
+		"http":  "80",
+		"https": "443",
+		"imap":  "143",
+		"mysql": "3306",
+		"ldap":  "389",
+		"ldaps": "636",
+		"psql":  "5432",
+		"smtp":  "25",
+	}
 )
 
 // TCPWaitMessage is a container for a wait operation result.
@@ -114,10 +134,59 @@ func SingleTCP(
 
 // TCPSpec represents the input specification of a single TCP wait operation.
 type TCPSpec struct {
-	// Addr is the address being waited.
-	Addr string
+	// Host is the hostname or IP address being waited.
+	Host string
+	// Port is the port number for the connection.
+	Port string
 	// PollFreq is how often a connection is attempted.
 	PollFreq time.Duration
+}
+
+func ParseTCPSpec(addr string, pollFreq time.Duration) (*TCPSpec, error) {
+	var (
+		proto             string
+		rawHost           string
+		hasPort, hasProto bool
+		matches           = addrPattern.FindStringSubmatch(addr)
+		subexpNames       = addrPattern.SubexpNames()
+		groups            = make(map[string]string)
+	)
+
+	for i, value := range matches {
+		groups[subexpNames[i]] = value
+	}
+
+	rawHost = groups["host"]
+	hasPort = strings.ContainsRune(rawHost, ':')
+
+	if hasPort {
+		host, port, err := net.SplitHostPort(rawHost)
+		if err != nil {
+			return nil, err
+		}
+		groups["host"] = host
+		groups["port"] = port
+	} else if proto, hasProto = groups["proto"]; hasProto {
+		if port, knownProto := protoPort[strings.ToLower(proto)]; knownProto {
+			groups["host"] = rawHost
+			groups["port"] = port
+		} else {
+			if proto == "" {
+				return nil, fmt.Errorf("neither port nor protocol is given")
+			}
+			return nil, fmt.Errorf("port not given and protocol is unknown: %q", proto)
+		}
+	}
+
+	if rawFreq, hasFreq := groups["freq"]; hasFreq && rawFreq != "" {
+		freq, err := time.ParseDuration(rawFreq)
+		if err != nil {
+			return nil, err
+		}
+		pollFreq = freq
+	}
+
+	return &TCPSpec{Host: groups["host"], Port: groups["port"], PollFreq: pollFreq}, nil
 }
 
 // AllTCP waits until connections can be made to all given TCP addresses.
@@ -132,7 +201,7 @@ func AllTCP(
 	// when printing.
 	addrs := make([]string, len(specs))
 	for i, spec := range specs {
-		addrs[i] = spec.Addr
+		addrs[i] = net.JoinHostPort(spec.Host, spec.Port)
 	}
 
 	var (
@@ -160,7 +229,7 @@ func AllTCP(
 	}
 
 	for _, spec := range specs {
-		go SingleTCP(spec.Addr, waiting, ready, spec.PollFreq, statusFreq, startTime)
+		go SingleTCP(net.JoinHostPort(spec.Host, spec.Port), waiting, ready, spec.PollFreq, statusFreq, startTime)
 	}
 
 	for {
