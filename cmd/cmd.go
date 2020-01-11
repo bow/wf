@@ -46,25 +46,15 @@ func Execute() error {
 				addrs = args[:dashIdx]
 			}
 
-			specs := make([]*wait.TCPSpec, len(addrs))
-			for i, addr := range addrs {
-				spec, err := wait.ParseTCPSpec(addr, pollFreq)
-				if err != nil {
-					fmt.Printf("ERROR: %s\n", err)
-					os.Exit(1)
-				}
-				specs[i] = spec
-			}
-
-			msg := wait.AllTCP(specs, waitTimeout, statusFreq, isQuiet)
-			if msg.Err != nil {
+			duration, err := wait.AllTCP(addrs, waitTimeout, pollFreq, statusFreq, isQuiet)
+			if err != nil {
 				if !isQuiet {
-					fmt.Printf("ERROR: %s\n", msg.Err)
+					fmt.Printf("ERROR: %s\n", err)
 				}
 				os.Exit(1)
 			}
 			if !isQuiet {
-				fmt.Printf("OK: all ready after %s\n", msg.SinceStart())
+				fmt.Printf("OK: all ready after %s\n", duration)
 			}
 		},
 	}

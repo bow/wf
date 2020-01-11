@@ -191,16 +191,20 @@ func ParseTCPSpec(addr string, pollFreq time.Duration) (*TCPSpec, error) {
 
 // AllTCP waits until connections can be made to all given TCP addresses.
 func AllTCP(
-	specs []*TCPSpec,
-	waitTimeout time.Duration,
-	statusFreq time.Duration,
+	rawAddrs []string,
+	waitTimeout, pollFreq, statusFreq time.Duration,
 	isQuiet bool,
-) TCPWaitMessage {
+) (time.Duration, error) {
 
-	// Initialize a slice of addresses; used for initializing a pending set and determining padding
-	// when printing.
-	addrs := make([]string, len(specs))
-	for i, spec := range specs {
+	// Parse addresses into TCP specs.
+	specs := make([]*TCPSpec, len(rawAddrs))
+	addrs := make([]string, len(rawAddrs))
+	for i, rawAddr := range rawAddrs {
+		spec, err := ParseTCPSpec(rawAddr, pollFreq)
+		if err != nil {
+			return 0, err
+		}
+		specs[i] = spec
 		addrs[i] = net.JoinHostPort(spec.Host, spec.Port)
 	}
 
@@ -235,23 +239,21 @@ func AllTCP(
 	for {
 		select {
 		case <-timeout.C:
-			return TCPWaitMessage{
-				Err: fmt.Errorf("reached timeout limit of %s", waitTimeout),
-			}
+			return 0, fmt.Errorf("reached timeout limit of %s", waitTimeout)
 
 		case waitMsg := <-waiting:
 			showStatus(waitMsg)
 
 		case readyMsg := <-ready:
 			if readyMsg.Err != nil {
-				return readyMsg
+				return 0, readyMsg.Err
 			}
 
 			pendingSet.Remove(readyMsg.Addr)
 			showStatus(readyMsg)
 
 			if pendingSet.IsEmpty() {
-				return readyMsg
+				return readyMsg.SinceStart(), nil
 			}
 		}
 	}
