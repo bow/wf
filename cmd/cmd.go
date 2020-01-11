@@ -38,9 +38,15 @@ func Execute() error {
 		},
 
 		Run: func(cmd *cobra.Command, args []string) {
+			var showMsgf func(string, ...interface{}) (int, error)
+			if isQuiet {
+				showMsgf = func(format string, t ...interface{}) (int, error) { return 0, nil }
+			} else {
+				showMsgf = fmt.Printf
+			}
+
 			var addrs []string
-			dashIdx := cmd.ArgsLenAtDash()
-			if dashIdx == -1 {
+			if dashIdx := cmd.ArgsLenAtDash(); dashIdx == -1 {
 				addrs = args
 			} else {
 				addrs = args[:dashIdx]
@@ -48,14 +54,12 @@ func Execute() error {
 
 			duration, err := wait.AllTCP(addrs, waitTimeout, pollFreq, statusFreq, isQuiet)
 			if err != nil {
-				if !isQuiet {
-					fmt.Printf("ERROR: %s\n", err)
-				}
+				// nolint:errcheck
+				showMsgf("ERROR: %s\n", err)
 				os.Exit(1)
 			}
-			if !isQuiet {
-				fmt.Printf("OK: all ready after %s\n", duration)
-			}
+			// nolint:errcheck
+			showMsgf("OK: all ready after %s\n", duration)
 		},
 	}
 
