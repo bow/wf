@@ -104,35 +104,34 @@ func SingleTCP(
 	statusTicker := time.NewTicker(statusFreq)
 	defer statusTicker.Stop()
 
-	check := func() bool {
+	// Helper function to check if a connection can be established.
+	checkConn := func() bool {
 		_, err := net.DialTimeout("tcp", addr, pollFreq)
 
 		if err == nil {
 			chReady <- TCPMessage{Ready, addr, startTime, time.Now(), nil}
-			return false
-		}
-
-		if ShouldWait(err) {
 			return true
 		}
 
+		if ShouldWait(err) {
+			return false
+		}
+
 		chReady <- TCPMessage{Failed, addr, startTime, time.Now(), err}
-		return false
+		return true
 	}
 
 	// So that we start polling immediately, without waiting for the first tick.
 	// There is no way to do this via the current ticker API.
 	// See: https://github.com/golang/go/issues/17601
-	keepWaiting := check()
-	if !keepWaiting {
+	if connReady := checkConn(); connReady {
 		return
 	}
 
 	for {
 		select {
 		case <-pollTicker.C:
-			keepWaiting = check()
-			if !keepWaiting {
+			if connReady := checkConn(); connReady {
 				return
 			}
 
