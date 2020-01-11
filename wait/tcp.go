@@ -28,8 +28,18 @@ var (
 	}
 )
 
-// TCPWaitMessage is a container for a wait operation result.
-type TCPWaitMessage struct {
+// TCPSpec represents the input specification of a single TCP wait operation.
+type TCPSpec struct {
+	// Host is the hostname or IP address being waited.
+	Host string
+	// Port is the port number for the connection.
+	Port string
+	// PollFreq is how often a connection is attempted.
+	PollFreq time.Duration
+}
+
+// TCPMessage is a container for a TCP wait operation status.
+type TCPMessage struct {
 	// Status is the status of the waiting operation.
 	Status Status
 	// Addr is the address being waited.
@@ -43,7 +53,7 @@ type TCPWaitMessage struct {
 }
 
 // SinceStart returns the duration between status emission and wait start time.
-func (msg *TCPWaitMessage) SinceStart() time.Duration {
+func (msg *TCPMessage) SinceStart() time.Duration {
 	return msg.EmitTime.Sub(msg.StartTime)
 }
 
@@ -78,8 +88,8 @@ func ShouldWait(err error) bool {
 // the current time is used.
 func SingleTCP(
 	addr string,
-	chWaiting chan TCPWaitMessage,
-	chReady chan TCPWaitMessage,
+	chWaiting chan TCPMessage,
+	chReady chan TCPMessage,
 	pollFreq, statusFreq time.Duration,
 	startTime time.Time,
 ) {
@@ -98,7 +108,7 @@ func SingleTCP(
 		_, err := net.DialTimeout("tcp", addr, pollFreq)
 
 		if err == nil {
-			chReady <- TCPWaitMessage{Ready, addr, startTime, time.Now(), nil}
+			chReady <- TCPMessage{Ready, addr, startTime, time.Now(), nil}
 			return false
 		}
 
@@ -106,7 +116,7 @@ func SingleTCP(
 			return true
 		}
 
-		chReady <- TCPWaitMessage{Failed, addr, startTime, time.Now(), err}
+		chReady <- TCPMessage{Failed, addr, startTime, time.Now(), err}
 		return false
 	}
 
@@ -127,19 +137,9 @@ func SingleTCP(
 			}
 
 		case <-statusTicker.C:
-			chWaiting <- TCPWaitMessage{Waiting, addr, startTime, time.Now(), nil}
+			chWaiting <- TCPMessage{Waiting, addr, startTime, time.Now(), nil}
 		}
 	}
-}
-
-// TCPSpec represents the input specification of a single TCP wait operation.
-type TCPSpec struct {
-	// Host is the hostname or IP address being waited.
-	Host string
-	// Port is the port number for the connection.
-	Port string
-	// PollFreq is how often a connection is attempted.
-	PollFreq time.Duration
 }
 
 func ParseTCPSpec(addr string, pollFreq time.Duration) (*TCPSpec, error) {
@@ -209,10 +209,10 @@ func AllTCP(
 	}
 
 	var (
-		showStatus         func(TCPWaitMessage)
+		showStatus         func(TCPMessage)
 		pendingSet         = newPendingSet(addrs)
-		ready              = make(chan TCPWaitMessage)
-		waiting            = make(chan TCPWaitMessage)
+		ready              = make(chan TCPMessage)
+		waiting            = make(chan TCPMessage)
 		startTime, timeout = time.Now(), time.NewTimer(waitTimeout)
 	)
 	defer timeout.Stop()
@@ -222,12 +222,12 @@ func AllTCP(
 		statusFreq = 2 * waitTimeout
 		// Set showStatus to do nothing; needed even without any status being emitted to prevent
 		// runtime nil deref runtime error.
-		showStatus = func(msg TCPWaitMessage) {}
+		showStatus = func(msg TCPMessage) {}
 	} else {
 		statusVerb := mkFmtVerb([]string{Ready.String(), Waiting.String()}, 0, false)
 		addrVerb := mkFmtVerb(addrs, 2, true)
 		msgFmt := fmt.Sprintf("%s: %s [%%s] ...\n", statusVerb, addrVerb)
-		showStatus = func(msg TCPWaitMessage) {
+		showStatus = func(msg TCPMessage) {
 			fmt.Printf(msgFmt, msg.Status, msg.Addr, msg.SinceStart())
 		}
 	}
