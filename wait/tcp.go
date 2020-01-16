@@ -38,23 +38,64 @@ type TCPSpec struct {
 	PollFreq time.Duration
 }
 
-// TCPMessage is a container for a TCP wait operation status.
-type TCPMessage struct {
-	// Status is the status of the waiting operation.
-	Status Status
-	// Addr is the address being waited.
-	Addr string
-	// Start is the start time of the wait operation.
-	StartTime time.Time
-	// Time is the time the status was emitted.
-	EmitTime time.Time
-	// Err is any possible errors that have occurred.
-	Err error
+func (spec *TCPSpec) Addr() string {
+	return net.JoinHostPort(spec.Host, spec.Port)
 }
 
-// SinceStart returns the duration between status emission and wait start time.
-func (msg *TCPMessage) SinceStart() time.Duration {
-	return msg.EmitTime.Sub(msg.StartTime)
+type TCPMessage struct {
+	spec      *TCPSpec
+	status    Status
+	startTime time.Time
+	emitTime  time.Time
+	err       error
+}
+
+func NewTCPMessageReady(spec *TCPSpec, startTime time.Time) *TCPMessage {
+	return &TCPMessage{
+		spec:      spec,
+		status:    Ready,
+		startTime: startTime,
+		emitTime:  time.Now(),
+		err:       nil,
+	}
+}
+
+func NewTCPMessageWaiting(spec *TCPSpec, startTime time.Time) *TCPMessage {
+	return &TCPMessage{
+		spec:      spec,
+		status:    Waiting,
+		startTime: startTime,
+		emitTime:  time.Now(),
+		err:       nil,
+	}
+}
+
+func NewTCPMessageFailed(spec *TCPSpec, startTime time.Time, err error) *TCPMessage {
+	return &TCPMessage{
+		spec:      spec,
+		status:    Failed,
+		startTime: startTime,
+		emitTime:  time.Now(),
+		err:       err,
+	}
+}
+
+func (msg *TCPMessage) Status() Status {
+	return msg.status
+}
+
+// Addr is the address being waited.
+func (msg *TCPMessage) Addr() string {
+	return msg.spec.Addr()
+}
+
+// ElapsedTime is the duration between waiting operation start and status emission.
+func (msg *TCPMessage) ElapsedTime() time.Duration {
+	return msg.emitTime.Sub(msg.startTime)
+}
+
+func (msg *TCPMessage) Err() error {
+	return msg.err
 }
 
 // ShouldWait checks that a given error represents a condition in which we should still wait and
@@ -78,67 +119,6 @@ func ShouldWait(err error) bool {
 	}
 
 	return false
-}
-
-// SingleTCP waits until a TCP connection can be made to the given address. It runs indefinitely,
-// emitting messages to two channels: `chWaiting` while still waiting and `chReady` when the wait
-// has finished. The check frequency is controlled by `pollFreq`, while every `statusFreq` a status
-// message is emitted A `startTime` may be given a nonzero value, which is useful when tracking
-// multiple wait operations launched within a short period. If its value is equal to the zero time,
-// the current time is used.
-func SingleTCP(
-	addr string,
-	chWaiting chan TCPMessage,
-	chReady chan TCPMessage,
-	pollFreq, statusFreq time.Duration,
-	startTime time.Time,
-) {
-
-	if startTime.IsZero() {
-		startTime = time.Now()
-	}
-
-	pollTicker := time.NewTicker(pollFreq)
-	defer pollTicker.Stop()
-
-	statusTicker := time.NewTicker(statusFreq)
-	defer statusTicker.Stop()
-
-	// Helper function to check if a connection can be established.
-	checkConn := func() bool {
-		_, err := net.DialTimeout("tcp", addr, pollFreq)
-
-		if err == nil {
-			chReady <- TCPMessage{Ready, addr, startTime, time.Now(), nil}
-			return true
-		}
-
-		if ShouldWait(err) {
-			return false
-		}
-
-		chReady <- TCPMessage{Failed, addr, startTime, time.Now(), err}
-		return true
-	}
-
-	// So that we start polling immediately, without waiting for the first tick.
-	// There is no way to do this via the current ticker API.
-	// See: https://github.com/golang/go/issues/17601
-	if connReady := checkConn(); connReady {
-		return
-	}
-
-	for {
-		select {
-		case <-pollTicker.C:
-			if connReady := checkConn(); connReady {
-				return
-			}
-
-		case <-statusTicker.C:
-			chWaiting <- TCPMessage{Waiting, addr, startTime, time.Now(), nil}
-		}
-	}
 }
 
 func ParseTCPSpec(addr string, pollFreq time.Duration) (*TCPSpec, error) {
@@ -188,6 +168,53 @@ func ParseTCPSpec(addr string, pollFreq time.Duration) (*TCPSpec, error) {
 	return &TCPSpec{Host: groups["host"], Port: groups["port"], PollFreq: pollFreq}, nil
 }
 
+// SingleTCP waits until a TCP connection can be made to the given address.
+func SingleTCP(spec *TCPSpec, out chan *TCPMessage, statusFreq time.Duration, startTime time.Time) {
+	if startTime.IsZero() {
+		startTime = time.Now()
+	}
+
+	checkConn := func() bool {
+		_, err := net.DialTimeout("tcp", spec.Addr(), spec.PollFreq)
+
+		if err == nil {
+			out <- NewTCPMessageReady(spec, startTime)
+			return true
+		}
+
+		if ShouldWait(err) {
+			return false
+		}
+
+		out <- NewTCPMessageFailed(spec, startTime, err)
+		return true
+	}
+
+	pollTicker := time.NewTicker(spec.PollFreq)
+	defer pollTicker.Stop()
+
+	statusTicker := time.NewTicker(statusFreq)
+	defer statusTicker.Stop()
+
+	// So that we start polling immediately, without waiting for the first tick.
+	// There is no way to do this via the current ticker API.
+	// See: https://github.com/golang/go/issues/17601
+	if connReady := checkConn(); connReady {
+		return
+	}
+
+	for {
+		select {
+		case <-pollTicker.C:
+			if connReady := checkConn(); connReady {
+				return
+			}
+		case <-statusTicker.C:
+			out <- NewTCPMessageWaiting(spec, startTime)
+		}
+	}
+}
+
 // AllTCP waits until connections can be made to all given TCP addresses.
 func AllTCP(
 	rawAddrs []string,
@@ -204,14 +231,13 @@ func AllTCP(
 			return 0, err
 		}
 		specs[i] = spec
-		addrs[i] = net.JoinHostPort(spec.Host, spec.Port)
+		addrs[i] = spec.Addr()
 	}
 
 	var (
-		showStatus         func(TCPMessage)
+		showStatus         func(*TCPMessage)
 		pendingSet         = newPendingSet(addrs)
-		ready              = make(chan TCPMessage)
-		waiting            = make(chan TCPMessage)
+		msgs               = make(chan *TCPMessage)
 		startTime, timeout = time.Now(), time.NewTimer(waitTimeout)
 	)
 	defer timeout.Stop()
@@ -221,18 +247,18 @@ func AllTCP(
 		statusFreq = 2 * waitTimeout
 		// Set showStatus to do nothing; needed even without any status being emitted to prevent
 		// runtime nil deref runtime error.
-		showStatus = func(msg TCPMessage) {}
+		showStatus = func(msg *TCPMessage) {}
 	} else {
-		statusVerb := mkFmtVerb([]string{Ready.String(), Waiting.String()}, 0, false)
+		statusVerb := mkFmtVerb(statusValues, 0, false)
 		addrVerb := mkFmtVerb(addrs, 2, true)
 		msgFmt := fmt.Sprintf("%s: %s [%%s] ...\n", statusVerb, addrVerb)
-		showStatus = func(msg TCPMessage) {
-			fmt.Printf(msgFmt, msg.Status, msg.Addr, msg.SinceStart())
+		showStatus = func(msg *TCPMessage) {
+			fmt.Printf(msgFmt, msg.Status(), msg.Addr(), msg.ElapsedTime())
 		}
 	}
 
 	for _, spec := range specs {
-		go SingleTCP(net.JoinHostPort(spec.Host, spec.Port), waiting, ready, spec.PollFreq, statusFreq, startTime)
+		go SingleTCP(spec, msgs, statusFreq, startTime)
 	}
 
 	for {
@@ -240,19 +266,22 @@ func AllTCP(
 		case <-timeout.C:
 			return 0, fmt.Errorf("reached timeout limit of %s", waitTimeout)
 
-		case waitMsg := <-waiting:
-			showStatus(waitMsg)
+		case msg := <-msgs:
+			switch msg.Status() {
 
-		case readyMsg := <-ready:
-			if readyMsg.Err != nil {
-				return 0, readyMsg.Err
-			}
+			case Waiting:
+				showStatus(msg)
 
-			pendingSet.Remove(readyMsg.Addr)
-			showStatus(readyMsg)
+			case Failed:
+				return 0, msg.Err()
 
-			if pendingSet.IsEmpty() {
-				return readyMsg.SinceStart(), nil
+			case Ready:
+				pendingSet.Remove(msg.Addr())
+				showStatus(msg)
+
+				if pendingSet.IsEmpty() {
+					return msg.ElapsedTime(), nil
+				}
 			}
 		}
 	}
