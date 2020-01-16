@@ -5,6 +5,8 @@ import (
 	"sync"
 )
 
+var statusValues = []string{"waiting", "ready", "failed"}
+
 // Status enumerates possible waiting status.
 type Status int
 
@@ -14,8 +16,8 @@ const (
 	Failed
 )
 
-func (ws Status) String() string {
-	return [...]string{"waiting", "ready", "failed"}[ws]
+func (s Status) String() string {
+	return statusValues[s]
 }
 
 // pendingSet is a set container for addresses to which a TCP connection has not been made.
