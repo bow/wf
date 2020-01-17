@@ -209,8 +209,8 @@ func AllTCP(
 ) (time.Duration, error) {
 
 	// Parse addresses into TCP specs.
-	specs := make([]*TCPSpec, len(rawAddrs))
 	addrs := make([]string, len(rawAddrs))
+	specs := make([]*TCPSpec, len(rawAddrs))
 	for i, rawAddr := range rawAddrs {
 		spec, err := ParseTCPSpec(rawAddr, pollFreq)
 		if err != nil {
@@ -222,7 +222,7 @@ func AllTCP(
 
 	var (
 		showStatus         func(*TCPMessage)
-		chs                = make([](<-chan *TCPMessage), len(addrs))
+		chs                = make([](<-chan *TCPMessage), len(specs))
 		startTime, timeout = time.Now(), time.NewTimer(waitTimeout)
 	)
 	defer timeout.Stop()
