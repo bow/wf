@@ -99,29 +99,6 @@ func (msg *TCPMessage) Err() error {
 	return msg.err
 }
 
-// ShouldWait checks that a given error represents a condition in which we should still wait and
-// attempt a connection or not.
-// Currently this covers two broad classes of errors: 1) I/O timeout errors and 2) connection
-// refused (server not ready) errors. Note that this only been tested on POSIX systems.
-func ShouldWait(err error) bool {
-	// First case: i/o timeout.
-	if os.IsTimeout(err) {
-		return true
-	}
-
-	// Second case: connection refused -- remote server not ready.
-	if opErr, isOpErr := err.(*net.OpError); isOpErr {
-		ierr := opErr.Unwrap()
-		if syscallErr, isSyscallErr := ierr.(*os.SyscallError); isSyscallErr {
-			iierr := syscallErr.Unwrap()
-
-			return iierr == syscall.ECONNREFUSED
-		}
-	}
-
-	return false
-}
-
 func ParseTCPSpec(addr string, pollFreq time.Duration) (*TCPSpec, error) {
 	var (
 		proto             string
@@ -185,7 +162,7 @@ func SingleTCP(spec *TCPSpec, statusFreq time.Duration, startTime time.Time) <-c
 			return true
 		}
 
-		if ShouldWait(err) {
+		if shouldWait(err) {
 			return false
 		}
 
@@ -295,6 +272,29 @@ func AllTCP(
 			}
 		}
 	}
+}
+
+// shouldWait checks that a given error represents a condition in which we should still wait and
+// attempt a connection or not.
+// Currently this covers two broad classes of errors: 1) I/O timeout errors and 2) connection
+// refused (server not ready) errors. Note that this has only been tested on POSIX systems.
+func shouldWait(err error) bool {
+	// First case: i/o timeout.
+	if os.IsTimeout(err) {
+		return true
+	}
+
+	// Second case: connection refused -- remote server not ready.
+	if opErr, isOpErr := err.(*net.OpError); isOpErr {
+		ierr := opErr.Unwrap()
+		if syscallErr, isSyscallErr := ierr.(*os.SyscallError); isSyscallErr {
+			iierr := syscallErr.Unwrap()
+
+			return iierr == syscall.ECONNREFUSED
+		}
+	}
+
+	return false
 }
 
 // Adapted from: https://blog.golang.org/pipelines
