@@ -6,6 +6,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -169,10 +170,12 @@ func ParseTCPSpec(addr string, pollFreq time.Duration) (*TCPSpec, error) {
 }
 
 // SingleTCP waits until a TCP connection can be made to the given address.
-func SingleTCP(spec *TCPSpec, out chan *TCPMessage, statusFreq time.Duration, startTime time.Time) {
+func SingleTCP(spec *TCPSpec, statusFreq time.Duration, startTime time.Time) <-chan *TCPMessage {
 	if startTime.IsZero() {
 		startTime = time.Now()
 	}
+
+	out := make(chan *TCPMessage, 1)
 
 	checkConn := func() bool {
 		_, err := net.DialTimeout("tcp", spec.Addr(), spec.PollFreq)
@@ -190,29 +193,35 @@ func SingleTCP(spec *TCPSpec, out chan *TCPMessage, statusFreq time.Duration, st
 		return true
 	}
 
-	pollTicker := time.NewTicker(spec.PollFreq)
-	defer pollTicker.Stop()
+	go func() {
+		pollTicker := time.NewTicker(spec.PollFreq)
+		defer pollTicker.Stop()
 
-	statusTicker := time.NewTicker(statusFreq)
-	defer statusTicker.Stop()
+		statusTicker := time.NewTicker(statusFreq)
+		defer statusTicker.Stop()
 
-	// So that we start polling immediately, without waiting for the first tick.
-	// There is no way to do this via the current ticker API.
-	// See: https://github.com/golang/go/issues/17601
-	if connReady := checkConn(); connReady {
-		return
-	}
+		defer close(out)
 
-	for {
-		select {
-		case <-pollTicker.C:
-			if connReady := checkConn(); connReady {
-				return
-			}
-		case <-statusTicker.C:
-			out <- NewTCPMessageWaiting(spec, startTime)
+		// So that we start polling immediately, without waiting for the first tick.
+		// There is no way to do this via the current ticker API.
+		// See: https://github.com/golang/go/issues/17601
+		if connReady := checkConn(); connReady {
+			return
 		}
-	}
+
+		for {
+			select {
+			case <-pollTicker.C:
+				if connReady := checkConn(); connReady {
+					return
+				}
+			case <-statusTicker.C:
+				out <- NewTCPMessageWaiting(spec, startTime)
+			}
+		}
+	}()
+
+	return out
 }
 
 // AllTCP waits until connections can be made to all given TCP addresses.
@@ -236,8 +245,7 @@ func AllTCP(
 
 	var (
 		showStatus         func(*TCPMessage)
-		pendingSet         = newPendingSet(addrs)
-		msgs               = make(chan *TCPMessage)
+		chs                = make([](<-chan *TCPMessage), len(addrs))
 		startTime, timeout = time.Now(), time.NewTimer(waitTimeout)
 	)
 	defer timeout.Stop()
@@ -257,32 +265,59 @@ func AllTCP(
 		}
 	}
 
-	for _, spec := range specs {
-		go SingleTCP(spec, msgs, statusFreq, startTime)
+	for i, spec := range specs {
+		chs[i] = SingleTCP(spec, statusFreq, startTime)
 	}
+
+	msgs := merge(chs)
+	// lastMsg keeps track of the last emitted message so that when the merged channel is closed,
+	// we can still emit the ElapsedTime() of the total wait operation (proxied here as the longest
+	// waiting time, i.e. the ElapsedTime() of the last message).
+	var lastMsg *TCPMessage
 
 	for {
 		select {
 		case <-timeout.C:
 			return 0, fmt.Errorf("reached timeout limit of %s", waitTimeout)
 
-		case msg := <-msgs:
+		case msg, isOpen := <-msgs:
+			if !isOpen {
+				return lastMsg.ElapsedTime(), nil
+			}
+			lastMsg = msg
 			switch msg.Status() {
-
 			case Waiting:
 				showStatus(msg)
-
 			case Failed:
 				return 0, msg.Err()
-
 			case Ready:
-				pendingSet.Remove(msg.Addr())
 				showStatus(msg)
-
-				if pendingSet.IsEmpty() {
-					return msg.ElapsedTime(), nil
-				}
 			}
 		}
 	}
+}
+
+// Adapted from: https://blog.golang.org/pipelines
+func merge(chs []<-chan *TCPMessage) <-chan *TCPMessage {
+	var wg sync.WaitGroup
+	merged := make(chan *TCPMessage)
+
+	forward := func(ch <-chan *TCPMessage) {
+		for msg := range ch {
+			merged <- msg
+		}
+		wg.Done()
+	}
+
+	wg.Add(len(chs))
+	for _, ch := range chs {
+		go forward(ch)
+	}
+
+	go func() {
+		wg.Wait()
+		close(merged)
+	}()
+
+	return merged
 }

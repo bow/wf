@@ -2,7 +2,6 @@ package wait
 
 import (
 	"fmt"
-	"sync"
 )
 
 var statusValues = []string{"waiting", "ready", "failed"}
@@ -18,39 +17,6 @@ const (
 
 func (s Status) String() string {
 	return statusValues[s]
-}
-
-// pendingSet is a set container for addresses to which a TCP connection has not been made.
-type pendingSet struct {
-	members map[string]bool
-	mux     sync.Mutex
-}
-
-// newPendingSet creates a set containing the given addresses.
-func newPendingSet(addrs []string) *pendingSet {
-	members := make(map[string]bool, len(addrs))
-	for _, addr := range addrs {
-		members[addr] = true
-	}
-
-	return &pendingSet{members: members}
-}
-
-// Remove removes the given address from the set. It is safe to use concurrently. The given address
-// may or may not exist prior to removal.
-func (ps *pendingSet) Remove(addr string) {
-	ps.mux.Lock()
-	defer ps.mux.Unlock()
-
-	delete(ps.members, addr)
-}
-
-/// IsEmpty checks whether the set is empty or not. It is safe to use concurrently.
-func (ps *pendingSet) IsEmpty() bool {
-	ps.mux.Lock()
-	defer ps.mux.Unlock()
-
-	return len(ps.members) == 0
 }
 
 // maxLength calculates the maximum length of the given strings.

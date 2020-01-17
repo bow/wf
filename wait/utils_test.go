@@ -27,39 +27,6 @@ func TestStatusString(t *testing.T) {
 	}
 }
 
-func TestPendingSet(t *testing.T) {
-	t.Parallel()
-
-	set := newPendingSet([]string{"a", "b"})
-
-	t.Run("IsEmpty() on a nonempty set works", func(t *testing.T) {
-		if set.IsEmpty() {
-			t.Errorf("expected set to have two items")
-		}
-	})
-
-	t.Run("Remove() with nonexistent item works", func(t *testing.T) {
-		set.Remove("c")
-		if set.IsEmpty() {
-			t.Errorf("expected set to still have two items")
-		}
-	})
-
-	t.Run("Remove() with existing item down to 1 members works", func(t *testing.T) {
-		set.Remove("a")
-		if set.IsEmpty() {
-			t.Errorf("expected set to still have one item")
-		}
-	})
-
-	t.Run("Remove() with existing item down to 0 members works", func(t *testing.T) {
-		set.Remove("b")
-		if !set.IsEmpty() {
-			t.Errorf("expected set to be empty")
-		}
-	})
-}
-
 func TestMaxLength(t *testing.T) {
 	t.Parallel()
 	var tests = []struct {
