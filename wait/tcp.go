@@ -159,20 +159,16 @@ func SingleTCP(ctx context.Context, spec *TCPSpec, startTime time.Time) <-chan *
 
 	out := make(chan *TCPMessage, 1)
 
-	checkConn := func() bool {
+	checkConn := func() *TCPMessage {
 		_, err := net.DialTimeout("tcp", spec.Addr(), spec.PollFreq)
 
 		if err == nil {
-			out <- NewTCPMessageReady(spec, startTime)
-			return true
+			return NewTCPMessageReady(spec, startTime)
 		}
-
 		if shouldWait(err) {
-			return false
+			return nil
 		}
-
-		out <- NewTCPMessageFailed(spec, startTime, err)
-		return true
+		return NewTCPMessageFailed(spec, startTime, err)
 	}
 
 	go func() {
@@ -187,7 +183,8 @@ func SingleTCP(ctx context.Context, spec *TCPSpec, startTime time.Time) <-chan *
 		// So that we start polling immediately, without waiting for the first tick.
 		// There is no way to do this via the current ticker API.
 		// See: https://github.com/golang/go/issues/17601
-		if connReady := checkConn(); connReady {
+		if msg := checkConn(); msg != nil {
+			out <- msg
 			return
 		}
 
@@ -196,10 +193,13 @@ func SingleTCP(ctx context.Context, spec *TCPSpec, startTime time.Time) <-chan *
 			case <-ctx.Done():
 				out <- NewTCPMessageFailed(spec, startTime, ctx.Err())
 				return
+
 			case <-pollTicker.C:
-				if connReady := checkConn(); connReady {
+				if msg := checkConn(); msg != nil {
+					out <- msg
 					return
 				}
+
 			case <-statusTicker.C:
 				out <- NewTCPMessageWaiting(spec, startTime)
 			}
