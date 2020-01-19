@@ -1,6 +1,7 @@
 package wait
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"regexp"
@@ -144,7 +145,12 @@ func ParseTCPSpec(addr string, pollFreq time.Duration) (*TCPSpec, error) {
 }
 
 // SingleTCP waits until a TCP connection can be made to the given address.
-func SingleTCP(spec *TCPSpec, statusFreq time.Duration, startTime time.Time) <-chan *TCPMessage {
+func SingleTCP(
+	ctx context.Context,
+	spec *TCPSpec,
+	statusFreq time.Duration,
+	startTime time.Time,
+) <-chan *TCPMessage {
 	if startTime.IsZero() {
 		startTime = time.Now()
 	}
@@ -185,6 +191,9 @@ func SingleTCP(spec *TCPSpec, statusFreq time.Duration, startTime time.Time) <-c
 
 		for {
 			select {
+			case <-ctx.Done():
+				out <- NewTCPMessageFailed(spec, startTime, ctx.Err())
+				return
 			case <-pollTicker.C:
 				if connReady := checkConn(); connReady {
 					return
@@ -204,7 +213,6 @@ func AllTCP(
 	waitTimeout, pollFreq, statusFreq time.Duration,
 	isQuiet bool,
 ) (time.Duration, error) {
-
 	// Parse addresses into TCP specs.
 	addrs := make([]string, len(rawAddrs))
 	specs := make([]*TCPSpec, len(rawAddrs))
@@ -239,8 +247,11 @@ func AllTCP(
 		}
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	for i, spec := range specs {
-		chs[i] = SingleTCP(spec, statusFreq, startTime)
+		chs[i] = SingleTCP(ctx, spec, statusFreq, startTime)
 	}
 
 	msgs := merge(chs)
