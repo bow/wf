@@ -2,6 +2,10 @@ package wait
 
 import (
 	"fmt"
+	"net"
+	"os"
+	"sync"
+	"syscall"
 )
 
 var statusValues = []string{"waiting", "ready", "failed"}
@@ -45,4 +49,52 @@ func mkFmtVerb(values []string, padding int, leftJustify bool) string {
 	verb := fmt.Sprintf("%%%ds", multiplier*(ml+padding))
 
 	return verb
+}
+
+// shouldWait checks that a given error represents a condition in which we should still wait and
+// attempt a connection or not.
+// Currently this covers two broad classes of errors: 1) I/O timeout errors and 2) connection
+// refused (server not ready) errors. Note that this has only been tested on POSIX systems.
+func shouldWait(err error) bool {
+	// First case: i/o timeout.
+	if os.IsTimeout(err) {
+		return true
+	}
+
+	// Second case: connection refused -- remote server not ready.
+	if opErr, isOpErr := err.(*net.OpError); isOpErr {
+		ierr := opErr.Unwrap()
+		if syscallErr, isSyscallErr := ierr.(*os.SyscallError); isSyscallErr {
+			iierr := syscallErr.Unwrap()
+
+			return iierr == syscall.ECONNREFUSED
+		}
+	}
+
+	return false
+}
+
+// Adapted from: https://blog.golang.org/pipelines
+func merge(chs []<-chan *TCPMessage) <-chan *TCPMessage {
+	var wg sync.WaitGroup
+	merged := make(chan *TCPMessage)
+
+	forward := func(ch <-chan *TCPMessage) {
+		for msg := range ch {
+			merged <- msg
+		}
+		wg.Done()
+	}
+
+	wg.Add(len(chs))
+	for _, ch := range chs {
+		go forward(ch)
+	}
+
+	go func() {
+		wg.Wait()
+		close(merged)
+	}()
+
+	return merged
 }
