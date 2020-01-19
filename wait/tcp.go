@@ -35,6 +35,8 @@ type TCPSpec struct {
 	Port string
 	// PollFreq is how often a connection is attempted.
 	PollFreq time.Duration
+	// StatusFreq is how often a status message is emitted.
+	StatusFreq time.Duration
 }
 
 func (spec *TCPSpec) Addr() string {
@@ -97,7 +99,7 @@ func (msg *TCPMessage) Err() error {
 	return msg.err
 }
 
-func ParseTCPSpec(addr string, pollFreq time.Duration) (*TCPSpec, error) {
+func ParseTCPSpec(addr string, pollFreq, statusFreq time.Duration) (*TCPSpec, error) {
 	var (
 		proto             string
 		rawHost           string
@@ -141,16 +143,16 @@ func ParseTCPSpec(addr string, pollFreq time.Duration) (*TCPSpec, error) {
 		pollFreq = freq
 	}
 
-	return &TCPSpec{Host: groups["host"], Port: groups["port"], PollFreq: pollFreq}, nil
+	return &TCPSpec{
+		Host:       groups["host"],
+		Port:       groups["port"],
+		PollFreq:   pollFreq,
+		StatusFreq: statusFreq,
+	}, nil
 }
 
 // SingleTCP waits until a TCP connection can be made to the given address.
-func SingleTCP(
-	ctx context.Context,
-	spec *TCPSpec,
-	statusFreq time.Duration,
-	startTime time.Time,
-) <-chan *TCPMessage {
+func SingleTCP(ctx context.Context, spec *TCPSpec, startTime time.Time) <-chan *TCPMessage {
 	if startTime.IsZero() {
 		startTime = time.Now()
 	}
@@ -177,7 +179,7 @@ func SingleTCP(
 		pollTicker := time.NewTicker(spec.PollFreq)
 		defer pollTicker.Stop()
 
-		statusTicker := time.NewTicker(statusFreq)
+		statusTicker := time.NewTicker(spec.StatusFreq)
 		defer statusTicker.Stop()
 
 		defer close(out)
@@ -213,11 +215,16 @@ func AllTCP(
 	waitTimeout, pollFreq, statusFreq time.Duration,
 	isQuiet bool,
 ) (time.Duration, error) {
+	if isQuiet {
+		// Set status freq to be double the wait timeout, preventing any status from being emitted.
+		statusFreq = 2 * waitTimeout
+	}
+
 	// Parse addresses into TCP specs.
 	addrs := make([]string, len(rawAddrs))
 	specs := make([]*TCPSpec, len(rawAddrs))
 	for i, rawAddr := range rawAddrs {
-		spec, err := ParseTCPSpec(rawAddr, pollFreq)
+		spec, err := ParseTCPSpec(rawAddr, pollFreq, statusFreq)
 		if err != nil {
 			return 0, err
 		}
@@ -233,8 +240,6 @@ func AllTCP(
 	defer timeout.Stop()
 
 	if isQuiet {
-		// Set status freq to be double the wait timeout, preventing any status from being emitted.
-		statusFreq = 2 * waitTimeout
 		// Set showStatus to do nothing; needed even without any status being emitted to prevent
 		// runtime nil deref runtime error.
 		showStatus = func(msg *TCPMessage) {}
@@ -251,7 +256,7 @@ func AllTCP(
 	defer cancel()
 
 	for i, spec := range specs {
-		chs[i] = SingleTCP(ctx, spec, statusFreq, startTime)
+		chs[i] = SingleTCP(ctx, spec, startTime)
 	}
 
 	msgs := merge(chs)
