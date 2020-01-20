@@ -10,6 +10,7 @@ func TestParseTCPSpec(t *testing.T) {
 	t.Parallel()
 
 	var commonPollFreq = 1 * time.Second
+	var commonStatusFreq = 5 * time.Second
 	var tests = []struct {
 		name    string
 		in      string
@@ -29,39 +30,69 @@ func TestParseTCPSpec(t *testing.T) {
 			fmt.Errorf("port not given and protocol is unknown: \"foo\""),
 		},
 		{
-			"no protocol, port, no freq",
+			"no protocol, port, no poll freq",
 			"localhost:5000",
-			&TCPSpec{Host: "localhost", Port: "5000", PollFreq: commonPollFreq},
+			&TCPSpec{
+				Host:       "localhost",
+				Port:       "5000",
+				PollFreq:   commonPollFreq,
+				StatusFreq: commonStatusFreq,
+			},
 			nil,
 		},
 		{
-			"no protocol, port, freq",
+			"no protocol, port, poll freq",
 			"localhost:5000#3s",
-			&TCPSpec{Host: "localhost", Port: "5000", PollFreq: 3 * time.Second},
+			&TCPSpec{
+				Host:       "localhost",
+				Port:       "5000",
+				PollFreq:   3 * time.Second,
+				StatusFreq: commonStatusFreq,
+			},
 			nil,
 		},
 		{
-			"http, no port, no freq",
+			"http, no port, no poll freq",
 			"http://localhost",
-			&TCPSpec{Host: "localhost", Port: "80", PollFreq: commonPollFreq},
+			&TCPSpec{
+				Host:       "localhost",
+				Port:       "80",
+				PollFreq:   commonPollFreq,
+				StatusFreq: commonStatusFreq,
+			},
 			nil,
 		},
 		{
-			"http, no port, freq",
+			"http, no port, poll freq",
 			"http://localhost#500ms",
-			&TCPSpec{Host: "localhost", Port: "80", PollFreq: 500 * time.Millisecond},
+			&TCPSpec{
+				Host:       "localhost",
+				Port:       "80",
+				PollFreq:   500 * time.Millisecond,
+				StatusFreq: commonStatusFreq,
+			},
 			nil,
 		},
 		{
-			"http, port, no freq",
+			"http, port, no poll freq",
 			"http://localhost:3000",
-			&TCPSpec{Host: "localhost", Port: "3000", PollFreq: commonPollFreq},
+			&TCPSpec{
+				Host:       "localhost",
+				Port:       "3000",
+				PollFreq:   commonPollFreq,
+				StatusFreq: commonStatusFreq,
+			},
 			nil,
 		},
 		{
-			"http, port, freq",
+			"http, port, poll freq",
 			"http://localhost:3000#2s",
-			&TCPSpec{Host: "localhost", Port: "3000", PollFreq: 2 * time.Second},
+			&TCPSpec{
+				Host:       "localhost",
+				Port:       "3000",
+				PollFreq:   2 * time.Second,
+				StatusFreq: commonStatusFreq,
+			},
 			nil,
 		},
 	}
@@ -76,7 +107,7 @@ func TestParseTCPSpec(t *testing.T) {
 			expSpec := test.expSpec
 			expErr := test.expErr
 
-			obs, err := ParseTCPSpec(test.in, commonPollFreq)
+			obs, err := ParseTCPSpec(test.in, commonPollFreq, commonStatusFreq)
 
 			if expErr != nil && err.Error() != expErr.Error() {
 				t.Errorf("test[%d] %q failed - got error: %q, want: %q", i, name, err, expErr)
