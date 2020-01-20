@@ -99,6 +99,22 @@ func (msg *TCPMessage) Err() error {
 	return msg.err
 }
 
+type ctxKey int
+
+const startTimeCtxKey ctxKey = 0
+
+func NewContext(ctx context.Context, startTime time.Time) context.Context {
+	return context.WithValue(ctx, startTimeCtxKey, startTime)
+}
+
+func StartTimeFromContext(ctx context.Context) time.Time {
+	startTime, ok := ctx.Value(startTimeCtxKey).(time.Time)
+	if !ok {
+		return time.Now()
+	}
+	return startTime
+}
+
 func ParseTCPSpec(addr string, pollFreq, statusFreq time.Duration) (*TCPSpec, error) {
 	var (
 		proto             string
@@ -152,11 +168,8 @@ func ParseTCPSpec(addr string, pollFreq, statusFreq time.Duration) (*TCPSpec, er
 }
 
 // SingleTCP waits until a TCP connection can be made to the given address.
-func SingleTCP(ctx context.Context, spec *TCPSpec, startTime time.Time) <-chan *TCPMessage {
-	if startTime.IsZero() {
-		startTime = time.Now()
-	}
-
+func SingleTCP(ctx context.Context, spec *TCPSpec) <-chan *TCPMessage {
+	startTime := StartTimeFromContext(ctx)
 	out := make(chan *TCPMessage, 1)
 
 	checkConn := func() *TCPMessage {
@@ -233,9 +246,9 @@ func AllTCP(
 	}
 
 	var (
-		showStatus         func(*TCPMessage)
-		chs                = make([](<-chan *TCPMessage), len(specs))
-		startTime, timeout = time.Now(), time.NewTimer(waitTimeout)
+		showStatus func(*TCPMessage)
+		chs        = make([](<-chan *TCPMessage), len(specs))
+		timeout    = time.NewTimer(waitTimeout)
 	)
 	defer timeout.Stop()
 
@@ -253,10 +266,11 @@ func AllTCP(
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
+	ctx = context.WithValue(ctx, startTimeCtxKey, time.Now())
 	defer cancel()
 
 	for i, spec := range specs {
-		chs[i] = SingleTCP(ctx, spec, startTime)
+		chs[i] = SingleTCP(ctx, spec)
 	}
 
 	msgs := merge(chs)
