@@ -43,13 +43,25 @@ func (spec *TCPSpec) Addr() string {
 	return net.JoinHostPort(spec.Host, spec.Port)
 }
 
+type Message interface {
+	Status() Status
+	String() string
+	Err() error
+	ElapsedTime() time.Duration
+}
+
 type TCPMessage struct {
 	spec      *TCPSpec
 	status    Status
 	startTime time.Time
 	emitTime  time.Time
 	err       error
+	stringF   func(*TCPMessage) string
 }
+
+// default string function for messages; needed even without any status being emitted to prevent
+// runtime nil deref runtime error.
+var defaultStringF = func(msg *TCPMessage) string { return "" }
 
 func NewTCPMessageReady(spec *TCPSpec, startTime time.Time) *TCPMessage {
 	return &TCPMessage{
@@ -58,6 +70,7 @@ func NewTCPMessageReady(spec *TCPSpec, startTime time.Time) *TCPMessage {
 		startTime: startTime,
 		emitTime:  time.Now(),
 		err:       nil,
+		stringF:   defaultStringF,
 	}
 }
 
@@ -68,6 +81,7 @@ func NewTCPMessageWaiting(spec *TCPSpec, startTime time.Time) *TCPMessage {
 		startTime: startTime,
 		emitTime:  time.Now(),
 		err:       nil,
+		stringF:   defaultStringF,
 	}
 }
 
@@ -78,11 +92,16 @@ func NewTCPMessageFailed(spec *TCPSpec, startTime time.Time, err error) *TCPMess
 		startTime: startTime,
 		emitTime:  time.Now(),
 		err:       err,
+		stringF:   defaultStringF,
 	}
 }
 
 func (msg *TCPMessage) Status() Status {
 	return msg.status
+}
+
+func (msg *TCPMessage) String() string {
+	return msg.stringF(msg)
 }
 
 // Addr is the address being waited.
@@ -167,6 +186,23 @@ func ParseTCPSpec(addr string, pollFreq, statusFreq time.Duration) (*TCPSpec, er
 	}, nil
 }
 
+func ParseTCPSpecs(
+	rawAddrs []string,
+	defaultPollFreq, statusFreq time.Duration,
+) ([]*TCPSpec, error) {
+	specs := make([]*TCPSpec, len(rawAddrs))
+
+	for i, rawAddr := range rawAddrs {
+		spec, err := ParseTCPSpec(rawAddr, defaultPollFreq, statusFreq)
+		if err != nil {
+			return []*TCPSpec{}, err
+		}
+		specs[i] = spec
+	}
+
+	return specs, nil
+}
+
 // SingleTCP waits until a TCP connection can be made to the given address.
 func SingleTCP(ctx context.Context, spec *TCPSpec) <-chan *TCPMessage {
 	startTime := StartTimeFromContext(ctx)
@@ -223,80 +259,71 @@ func SingleTCP(ctx context.Context, spec *TCPSpec) <-chan *TCPMessage {
 }
 
 // AllTCP waits until connections can be made to all given TCP addresses.
-func AllTCP(
-	rawAddrs []string,
-	waitTimeout, pollFreq, statusFreq time.Duration,
-	isQuiet bool,
-) (time.Duration, error) {
-	if isQuiet {
-		// Set status freq to be double the wait timeout, preventing any status from being emitted.
-		statusFreq = 2 * waitTimeout
-	}
+func AllTCP(specs []*TCPSpec, waitTimeout time.Duration) <-chan Message {
 
-	// Parse addresses into TCP specs.
-	addrs := make([]string, len(rawAddrs))
-	specs := make([]*TCPSpec, len(rawAddrs))
-	for i, rawAddr := range rawAddrs {
-		spec, err := ParseTCPSpec(rawAddr, pollFreq, statusFreq)
-		if err != nil {
-			return 0, err
-		}
-		specs[i] = spec
+	addrs := make([]string, len(specs))
+	for i, spec := range specs {
 		addrs[i] = spec.Addr()
 	}
 
 	var (
-		showStatus func(*TCPMessage)
-		chs        = make([](<-chan *TCPMessage), len(specs))
-		timeout    = time.NewTimer(waitTimeout)
-	)
-	defer timeout.Stop()
+		chs         = make([](<-chan *TCPMessage), len(specs))
+		out         = make(chan Message)
+		startTime   = time.Now()
+		timeout     = time.NewTimer(waitTimeout)
+		ctx, cancel = context.WithCancel(context.Background())
 
-	if isQuiet {
-		// Set showStatus to do nothing; needed even without any status being emitted to prevent
-		// runtime nil deref runtime error.
-		showStatus = func(msg *TCPMessage) {}
-	} else {
-		statusVerb := mkFmtVerb(statusValues, 0, false)
-		addrVerb := mkFmtVerb(addrs, 2, true)
-		msgFmt := fmt.Sprintf("%s: %s [%%s] ...\n", statusVerb, addrVerb)
-		showStatus = func(msg *TCPMessage) {
-			fmt.Printf(msgFmt, msg.Status(), msg.Addr(), msg.ElapsedTime())
+		statusVerb = mkFmtVerb(statusValues, 0, false)
+		addrVerb   = mkFmtVerb(addrs, 2, true)
+
+		msgFmtOk  = fmt.Sprintf("%s: %s [%%s] ...", statusVerb, addrVerb)
+		msgFmtErr = fmt.Sprintf("%s: %%s", statusVerb)
+
+		msgStringOk = func(msg *TCPMessage) string {
+			return fmt.Sprintf(msgFmtOk, msg.Status(), msg.Addr(), msg.ElapsedTime())
 		}
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	ctx = context.WithValue(ctx, startTimeCtxKey, time.Now())
-	defer cancel()
+		msgStringErr = func(msg *TCPMessage) string {
+			return fmt.Sprintf(msgFmtErr, msg.Status(), msg.Err())
+		}
+	)
+	ctx = context.WithValue(ctx, startTimeCtxKey, startTime)
 
 	for i, spec := range specs {
 		chs[i] = SingleTCP(ctx, spec)
 	}
 
 	msgs := merge(chs)
-	// lastMsg keeps track of the last emitted message so that when the merged channel is closed,
-	// we can still emit the ElapsedTime() of the total wait operation (proxied here as the longest
-	// waiting time, i.e. the ElapsedTime() of the last message).
-	var lastMsg *TCPMessage
+	go func() {
+		defer timeout.Stop()
+		defer cancel()
+		defer close(out)
 
-	for {
-		select {
-		case <-timeout.C:
-			return 0, fmt.Errorf("reached timeout limit of %s", waitTimeout)
+		for {
+			select {
+			case <-timeout.C:
+				msg := NewTCPMessageFailed(
+					nil,
+					startTime,
+					fmt.Errorf("reached timeout limit of %s", waitTimeout),
+				)
+				msg.stringF = msgStringErr
+				out <- msg
+				return
 
-		case msg, isOpen := <-msgs:
-			if !isOpen {
-				return lastMsg.ElapsedTime(), nil
-			}
-			lastMsg = msg
-			switch msg.Status() {
-			case Waiting:
-				showStatus(msg)
-			case Failed:
-				return 0, msg.Err()
-			case Ready:
-				showStatus(msg)
+			case msg, isOpen := <-msgs:
+				if !isOpen {
+					return
+				}
+				switch msg.Status() {
+				case Failed:
+					msg.stringF = msgStringErr
+				default:
+					msg.stringF = msgStringOk
+				}
+				out <- msg
 			}
 		}
-	}
+	}()
+
+	return out
 }
