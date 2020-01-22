@@ -265,9 +265,9 @@ func AllTCP(specs []*TCPSpec, waitTimeout time.Duration) <-chan Message {
 
 		statusVerb = mkFmtVerb(statusValues, 0, false)
 
-		msgFmtStart   = fmt.Sprintf("%s: waiting for %%s to be ready in %s", statusVerb, waitTimeout)
-		msgFmtReady   = fmt.Sprintf("%s: %%s in %%s", statusVerb)
-		msgFmtErr     = fmt.Sprintf("%s: %%s", statusVerb)
+		msgFmtStart = fmt.Sprintf("%s: waiting %s for %%s", statusVerb, waitTimeout)
+		msgFmtReady = fmt.Sprintf("%s: %%s in %%s", statusVerb)
+		msgFmtErr   = fmt.Sprintf("%s: %%s", statusVerb)
 
 		msgStringStart = func(msg *TCPMessage) string {
 			return fmt.Sprintf(msgFmtStart, msg.Status(), msg.Addr())
