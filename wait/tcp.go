@@ -61,7 +61,7 @@ type TCPMessage struct {
 // runtime nil deref runtime error.
 var defaultStringF = func(msg *TCPMessage) string { return "" }
 
-func NewTCPMessageStart(spec *TCPSpec, startTime time.Time) *TCPMessage {
+func newTCPMessageStart(spec *TCPSpec, startTime time.Time) *TCPMessage {
 	return &TCPMessage{
 		spec:      spec,
 		status:    Start,
@@ -72,7 +72,7 @@ func NewTCPMessageStart(spec *TCPSpec, startTime time.Time) *TCPMessage {
 	}
 }
 
-func NewTCPMessageReady(spec *TCPSpec, startTime time.Time) *TCPMessage {
+func newTCPMessageReady(spec *TCPSpec, startTime time.Time) *TCPMessage {
 	return &TCPMessage{
 		spec:      spec,
 		status:    Ready,
@@ -83,7 +83,7 @@ func NewTCPMessageReady(spec *TCPSpec, startTime time.Time) *TCPMessage {
 	}
 }
 
-func NewTCPMessageFailed(spec *TCPSpec, startTime time.Time, err error) *TCPMessage {
+func newTCPMessageFailed(spec *TCPSpec, startTime time.Time, err error) *TCPMessage {
 	return &TCPMessage{
 		spec:      spec,
 		status:    Failed,
@@ -206,12 +206,12 @@ func SingleTCP(ctx context.Context, spec *TCPSpec) <-chan *TCPMessage {
 		_, err := net.DialTimeout("tcp", spec.Addr(), spec.PollFreq)
 
 		if err == nil {
-			return NewTCPMessageReady(spec, startTime)
+			return newTCPMessageReady(spec, startTime)
 		}
 		if shouldWait(err) {
 			return nil
 		}
-		return NewTCPMessageFailed(spec, startTime, err)
+		return newTCPMessageFailed(spec, startTime, err)
 	}
 
 	go func() {
@@ -220,7 +220,7 @@ func SingleTCP(ctx context.Context, spec *TCPSpec) <-chan *TCPMessage {
 
 		defer close(out)
 
-		out <- NewTCPMessageStart(spec, startTime)
+		out <- newTCPMessageStart(spec, startTime)
 
 		// So that we start polling immediately, without waiting for the first tick.
 		// There is no way to do this via the current ticker API.
@@ -233,7 +233,7 @@ func SingleTCP(ctx context.Context, spec *TCPSpec) <-chan *TCPMessage {
 		for {
 			select {
 			case <-ctx.Done():
-				out <- NewTCPMessageFailed(spec, startTime, ctx.Err())
+				out <- newTCPMessageFailed(spec, startTime, ctx.Err())
 				return
 
 			case <-pollTicker.C:
@@ -294,7 +294,7 @@ func AllTCP(specs []*TCPSpec, waitTimeout time.Duration) <-chan Message {
 		for {
 			select {
 			case <-timeout.C:
-				msg := NewTCPMessageFailed(
+				msg := newTCPMessageFailed(
 					nil,
 					startTime,
 					fmt.Errorf("reached timeout limit of %s", waitTimeout),
