@@ -35,8 +35,6 @@ type TCPSpec struct {
 	Port string
 	// PollFreq is how often a connection is attempted.
 	PollFreq time.Duration
-	// StatusFreq is how often a status message is emitted.
-	StatusFreq time.Duration
 }
 
 func (spec *TCPSpec) Addr() string {
@@ -63,10 +61,10 @@ type TCPMessage struct {
 // runtime nil deref runtime error.
 var defaultStringF = func(msg *TCPMessage) string { return "" }
 
-func NewTCPMessageReady(spec *TCPSpec, startTime time.Time) *TCPMessage {
+func NewTCPMessageStart(spec *TCPSpec, startTime time.Time) *TCPMessage {
 	return &TCPMessage{
 		spec:      spec,
-		status:    Ready,
+		status:    Start,
 		startTime: startTime,
 		emitTime:  time.Now(),
 		err:       nil,
@@ -74,10 +72,10 @@ func NewTCPMessageReady(spec *TCPSpec, startTime time.Time) *TCPMessage {
 	}
 }
 
-func NewTCPMessageWaiting(spec *TCPSpec, startTime time.Time) *TCPMessage {
+func NewTCPMessageReady(spec *TCPSpec, startTime time.Time) *TCPMessage {
 	return &TCPMessage{
 		spec:      spec,
-		status:    Waiting,
+		status:    Ready,
 		startTime: startTime,
 		emitTime:  time.Now(),
 		err:       nil,
@@ -134,7 +132,7 @@ func StartTimeFromContext(ctx context.Context) time.Time {
 	return startTime
 }
 
-func ParseTCPSpec(addr string, pollFreq, statusFreq time.Duration) (*TCPSpec, error) {
+func ParseTCPSpec(addr string, pollFreq time.Duration) (*TCPSpec, error) {
 	var (
 		proto             string
 		rawHost           string
@@ -179,21 +177,17 @@ func ParseTCPSpec(addr string, pollFreq, statusFreq time.Duration) (*TCPSpec, er
 	}
 
 	return &TCPSpec{
-		Host:       groups["host"],
-		Port:       groups["port"],
-		PollFreq:   pollFreq,
-		StatusFreq: statusFreq,
+		Host:     groups["host"],
+		Port:     groups["port"],
+		PollFreq: pollFreq,
 	}, nil
 }
 
-func ParseTCPSpecs(
-	rawAddrs []string,
-	defaultPollFreq, statusFreq time.Duration,
-) ([]*TCPSpec, error) {
+func ParseTCPSpecs(rawAddrs []string, defaultPollFreq time.Duration) ([]*TCPSpec, error) {
 	specs := make([]*TCPSpec, len(rawAddrs))
 
 	for i, rawAddr := range rawAddrs {
-		spec, err := ParseTCPSpec(rawAddr, defaultPollFreq, statusFreq)
+		spec, err := ParseTCPSpec(rawAddr, defaultPollFreq)
 		if err != nil {
 			return []*TCPSpec{}, err
 		}
@@ -206,7 +200,7 @@ func ParseTCPSpecs(
 // SingleTCP waits until a TCP connection can be made to the given address.
 func SingleTCP(ctx context.Context, spec *TCPSpec) <-chan *TCPMessage {
 	startTime := StartTimeFromContext(ctx)
-	out := make(chan *TCPMessage, 1)
+	out := make(chan *TCPMessage, 2)
 
 	checkConn := func() *TCPMessage {
 		_, err := net.DialTimeout("tcp", spec.Addr(), spec.PollFreq)
@@ -224,10 +218,9 @@ func SingleTCP(ctx context.Context, spec *TCPSpec) <-chan *TCPMessage {
 		pollTicker := time.NewTicker(spec.PollFreq)
 		defer pollTicker.Stop()
 
-		statusTicker := time.NewTicker(spec.StatusFreq)
-		defer statusTicker.Stop()
-
 		defer close(out)
+
+		out <- NewTCPMessageStart(spec, startTime)
 
 		// So that we start polling immediately, without waiting for the first tick.
 		// There is no way to do this via the current ticker API.
@@ -248,9 +241,6 @@ func SingleTCP(ctx context.Context, spec *TCPSpec) <-chan *TCPMessage {
 					out <- msg
 					return
 				}
-
-			case <-statusTicker.C:
-				out <- NewTCPMessageWaiting(spec, startTime)
 			}
 		}
 	}()
@@ -274,13 +264,16 @@ func AllTCP(specs []*TCPSpec, waitTimeout time.Duration) <-chan Message {
 		ctx, cancel = context.WithCancel(context.Background())
 
 		statusVerb = mkFmtVerb(statusValues, 0, false)
-		addrVerb   = mkFmtVerb(addrs, 2, true)
 
-		msgFmtOk  = fmt.Sprintf("%s: %s [%%s] ...", statusVerb, addrVerb)
-		msgFmtErr = fmt.Sprintf("%s: %%s", statusVerb)
+		msgFmtStart   = fmt.Sprintf("%s: waiting for %%s to be ready in %s", statusVerb, waitTimeout)
+		msgFmtReady   = fmt.Sprintf("%s: %%s in %%s", statusVerb)
+		msgFmtErr     = fmt.Sprintf("%s: %%s", statusVerb)
 
-		msgStringOk = func(msg *TCPMessage) string {
-			return fmt.Sprintf(msgFmtOk, msg.Status(), msg.Addr(), msg.ElapsedTime())
+		msgStringStart = func(msg *TCPMessage) string {
+			return fmt.Sprintf(msgFmtStart, msg.Status(), msg.Addr())
+		}
+		msgStringReady = func(msg *TCPMessage) string {
+			return fmt.Sprintf(msgFmtReady, msg.Status(), msg.Addr(), msg.ElapsedTime())
 		}
 		msgStringErr = func(msg *TCPMessage) string {
 			return fmt.Sprintf(msgFmtErr, msg.Status(), msg.Err())
@@ -315,10 +308,12 @@ func AllTCP(specs []*TCPSpec, waitTimeout time.Duration) <-chan Message {
 					return
 				}
 				switch msg.Status() {
+				case Start:
+					msg.stringF = msgStringStart
+				case Ready:
+					msg.stringF = msgStringReady
 				case Failed:
 					msg.stringF = msgStringErr
-				default:
-					msg.stringF = msgStringOk
 				}
 				out <- msg
 			}

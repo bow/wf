@@ -8,13 +8,13 @@ import (
 	"syscall"
 )
 
-var statusValues = []string{"waiting", "ready", "failed"}
+var statusValues = []string{"start", "ready", "failed"}
 
 // Status enumerates possible waiting status.
 type Status int
 
 const (
-	Waiting Status = iota
+	Start Status = iota
 	Ready
 	Failed
 )

@@ -9,7 +9,7 @@ func TestStatusString(t *testing.T) {
 		in   Status
 		exp  string
 	}{
-		{"Waiting", Waiting, "waiting"},
+		{"Start", Start, "start"},
 		{"Ready", Ready, "ready"},
 		{"Failed", Failed, "failed"},
 	}

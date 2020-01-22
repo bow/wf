@@ -20,7 +20,6 @@ func Execute() error {
 	var (
 		waitTimeout time.Duration
 		pollFreq    time.Duration
-		statusFreq  time.Duration
 		isQuiet     bool
 	)
 
@@ -45,7 +44,7 @@ func Execute() error {
 				rawAddrs = args[:dashIdx]
 			}
 
-			specs, err := wait.ParseTCPSpecs(rawAddrs, pollFreq, statusFreq)
+			specs, err := wait.ParseTCPSpecs(rawAddrs, pollFreq)
 			if err != nil {
 				fmt.Printf("Error: %s\n", err)
 				os.Exit(1)
@@ -62,7 +61,7 @@ func Execute() error {
 			}
 			// nolint:errcheck
 			if !isQuiet {
-				fmt.Printf("Ok: all ready after %s\n", msg.ElapsedTime())
+				fmt.Printf("Ok: all ready in %s\n", msg.ElapsedTime())
 			}
 		},
 	}
@@ -71,7 +70,6 @@ func Execute() error {
 	flagSet.SortFlags = false
 	flagSet.DurationVarP(&waitTimeout, "timeout", "t", 5*time.Second, "set wait timeout")
 	flagSet.DurationVarP(&pollFreq, "poll-freq", "f", 500*time.Millisecond, "set connection poll frequency")
-	flagSet.DurationVarP(&statusFreq, "status-freq", "s", 1*time.Second, "set status message frequency")
 	flagSet.BoolVarP(&isQuiet, "quiet", "q", false, "suppress waiting messages")
 
 	return cmd.Execute()
