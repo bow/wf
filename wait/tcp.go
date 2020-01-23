@@ -43,7 +43,7 @@ func (spec *TCPSpec) Addr() string {
 
 type Message interface {
 	Status() Status
-	String() string
+	Target() string
 	Err() error
 	ElapsedTime() time.Duration
 }
@@ -54,12 +54,7 @@ type TCPMessage struct {
 	startTime time.Time
 	emitTime  time.Time
 	err       error
-	stringF   func(*TCPMessage) string
 }
-
-// default string function for messages; needed even without any status being emitted to prevent
-// runtime nil deref runtime error.
-var defaultStringF = func(msg *TCPMessage) string { return "" }
 
 func newTCPMessageStart(spec *TCPSpec, startTime time.Time) *TCPMessage {
 	return &TCPMessage{
@@ -68,7 +63,6 @@ func newTCPMessageStart(spec *TCPSpec, startTime time.Time) *TCPMessage {
 		startTime: startTime,
 		emitTime:  time.Now(),
 		err:       nil,
-		stringF:   defaultStringF,
 	}
 }
 
@@ -79,7 +73,6 @@ func newTCPMessageReady(spec *TCPSpec, startTime time.Time) *TCPMessage {
 		startTime: startTime,
 		emitTime:  time.Now(),
 		err:       nil,
-		stringF:   defaultStringF,
 	}
 }
 
@@ -90,7 +83,6 @@ func newTCPMessageFailed(spec *TCPSpec, startTime time.Time, err error) *TCPMess
 		startTime: startTime,
 		emitTime:  time.Now(),
 		err:       err,
-		stringF:   defaultStringF,
 	}
 }
 
@@ -98,13 +90,13 @@ func (msg *TCPMessage) Status() Status {
 	return msg.status
 }
 
-func (msg *TCPMessage) String() string {
-	return msg.stringF(msg)
-}
-
 // Addr is the address being waited.
 func (msg *TCPMessage) Addr() string {
 	return msg.spec.Addr()
+}
+
+func (msg *TCPMessage) Target() string {
+	return "tcp://" + msg.Addr()
 }
 
 // ElapsedTime is the duration between waiting operation start and status emission.
@@ -262,22 +254,6 @@ func AllTCP(specs []*TCPSpec, waitTimeout time.Duration) <-chan Message {
 		startTime   = time.Now()
 		timeout     = time.NewTimer(waitTimeout)
 		ctx, cancel = context.WithCancel(context.Background())
-
-		statusVerb = mkFmtVerb(statusValues, 0, false)
-
-		msgFmtStart = fmt.Sprintf("%s: waiting %s for %%s", statusVerb, waitTimeout)
-		msgFmtReady = fmt.Sprintf("%s: %%s in %%s", statusVerb)
-		msgFmtErr   = fmt.Sprintf("%s: %%s", statusVerb)
-
-		msgStringStart = func(msg *TCPMessage) string {
-			return fmt.Sprintf(msgFmtStart, msg.Status(), msg.Addr())
-		}
-		msgStringReady = func(msg *TCPMessage) string {
-			return fmt.Sprintf(msgFmtReady, msg.Status(), msg.Addr(), msg.ElapsedTime())
-		}
-		msgStringErr = func(msg *TCPMessage) string {
-			return fmt.Sprintf(msgFmtErr, msg.Status(), msg.Err())
-		}
 	)
 	ctx = context.WithValue(ctx, startTimeCtxKey, startTime)
 
@@ -299,21 +275,12 @@ func AllTCP(specs []*TCPSpec, waitTimeout time.Duration) <-chan Message {
 					startTime,
 					fmt.Errorf("reached timeout limit of %s", waitTimeout),
 				)
-				msg.stringF = msgStringErr
 				out <- msg
 				return
 
 			case msg, isOpen := <-msgs:
 				if !isOpen {
 					return
-				}
-				switch msg.Status() {
-				case Start:
-					msg.stringF = msgStringStart
-				case Ready:
-					msg.stringF = msgStringReady
-				case Failed:
-					msg.stringF = msgStringErr
 				}
 				out <- msg
 			}

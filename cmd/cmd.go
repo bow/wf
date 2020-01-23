@@ -46,22 +46,39 @@ func Execute() error {
 
 			specs, err := wait.ParseTCPSpecs(rawAddrs, pollFreq)
 			if err != nil {
-				fmt.Printf("Error: %s\n", err)
+				fmt.Printf("%6s: %s\n", "ERROR", err)
 				os.Exit(1)
 			}
 
-			var msg wait.Message
-			for msg = range wait.AllTCP(specs, waitTimeout) {
-				if !isQuiet {
-					fmt.Println(msg.String())
+			var (
+				msg   wait.Message
+				showF = func(wait.Message) {}
+			)
+			if !isQuiet {
+				showF = func(msg wait.Message) {
+					var disp string
+
+					switch msg.Status() {
+					case wait.Start:
+						disp = fmt.Sprintf("%6s: waiting %s for %s", wait.Start, msg.Target(), waitTimeout)
+					case wait.Ready:
+						disp = fmt.Sprintf("%6s: %s in %s", wait.Ready, msg.Target(), msg.ElapsedTime())
+					case wait.Failed:
+						disp = fmt.Sprintf("%6s: %s", wait.Failed, msg.Err())
+					}
+
+					fmt.Println(disp)
 				}
+			}
+			for msg = range wait.AllTCP(specs, waitTimeout) {
+				showF(msg)
 				if err := msg.Err(); err != nil {
 					os.Exit(1)
 				}
 			}
 			// nolint:errcheck
 			if !isQuiet {
-				fmt.Printf("Ok: all ready in %s\n", msg.ElapsedTime())
+				fmt.Printf("%6s: all ready in %s\n", "OK", msg.ElapsedTime())
 			}
 		},
 	}
