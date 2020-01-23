@@ -46,7 +46,7 @@ func Execute() error {
 
 			specs, err := wait.ParseTCPSpecs(rawAddrs, pollFreq)
 			if err != nil {
-				fmt.Printf("%6s: %s\n", "ERROR", err)
+				fmt.Printf("%7s: %s\n", "ERROR", err)
 				os.Exit(1)
 			}
 
@@ -60,11 +60,11 @@ func Execute() error {
 
 					switch msg.Status() {
 					case wait.Start:
-						disp = fmt.Sprintf("%6s: waiting %s for %s", wait.Start, msg.Target(), waitTimeout)
+						disp = fmt.Sprintf("%7s: %s for %s", "waiting", msg.Target(), waitTimeout)
 					case wait.Ready:
-						disp = fmt.Sprintf("%6s: %s in %s", wait.Ready, msg.Target(), msg.ElapsedTime())
+						disp = fmt.Sprintf("%7s: %s in %s", wait.Ready, msg.Target(), msg.ElapsedTime())
 					case wait.Failed:
-						disp = fmt.Sprintf("%6s: %s", wait.Failed, msg.Err())
+						disp = fmt.Sprintf("%7s: %s", wait.Failed, msg.Err())
 					}
 
 					fmt.Println(disp)
@@ -78,7 +78,7 @@ func Execute() error {
 			}
 			// nolint:errcheck
 			if !isQuiet {
-				fmt.Printf("%6s: all ready in %s\n", "OK", msg.ElapsedTime())
+				fmt.Printf("%7s: all ready in %s\n", "OK", msg.ElapsedTime())
 			}
 		},
 	}

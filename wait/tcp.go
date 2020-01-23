@@ -273,7 +273,7 @@ func AllTCP(specs []*TCPSpec, waitTimeout time.Duration) <-chan Message {
 				msg := newTCPMessageFailed(
 					nil,
 					startTime,
-					fmt.Errorf("reached timeout limit of %s", waitTimeout),
+					fmt.Errorf("exceeded timeout limit of %s", waitTimeout),
 				)
 				out <- msg
 				return
