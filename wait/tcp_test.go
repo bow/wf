@@ -1,7 +1,11 @@
 package wait
 
 import (
+	"context"
 	"fmt"
+	"net"
+	"strconv"
+	"sync"
 	"testing"
 	"time"
 )
@@ -110,5 +114,220 @@ func TestParseTCPSpec(t *testing.T) {
 				t.Errorf("test[%d] %q failed - got spec: %+v, want: %+v", i, name, *obs, *expSpec)
 			}
 		})
+	}
+}
+
+// tcpServerHost is the hostname for the test TCP server.
+const tcpServerHost = "127.0.0.1"
+
+// getLocalTCPPort returns a TCP port for testing by asking the kernel for a free port.
+func getLocalTCPPort() string {
+	addr, err := net.ResolveTCPAddr("tcp", net.JoinHostPort(tcpServerHost, "0"))
+	if err != nil {
+		panic(err)
+	}
+
+	listener, err := net.ListenTCP("tcp", addr)
+	if err != nil {
+		panic(err)
+	}
+	defer listener.Close()
+
+	return strconv.Itoa(listener.Addr().(*net.TCPAddr).Port)
+}
+
+// tcpServer is a wrapper struct for launching test TCP servers.
+type tcpServer struct {
+	host, port string
+	// readyDelay is the duration to wait before the server is running.
+	readyDelay time.Duration
+	t          *testing.T
+}
+
+// addr returns the tcpServer address.
+func (srv *tcpServer) addr() string {
+	return net.JoinHostPort(srv.host, srv.port)
+}
+
+// start starts the test TCP server. It returns a context.Context value based on the input context,
+// along with a cancellation function for stopping the server and ensuring proper cleanup.
+func (srv *tcpServer) start(ctx context.Context) (context.Context, context.CancelFunc) {
+	ictx, icancel := context.WithCancel(ctx)
+
+	go func(addr string, delay time.Duration, gctx context.Context, t *testing.T) {
+		select {
+		// Handle case when the goroutine needs to be killed prior to server start.
+		case <-gctx.Done():
+			t.Logf("aborting test TCP server %q startup: %s", addr, gctx.Err())
+			return
+		// Expected flow: wait for `delay` before starting the server.
+		case <-time.After(delay):
+		}
+
+		listener, err := net.Listen("tcp", addr)
+		if err != nil {
+			t.Logf("failed starting test TCP server %q: %s", addr, err)
+			return
+		}
+		defer listener.Close()
+
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				t.Logf("failed accepting TCP connection %q: %s", addr, err)
+				return
+			}
+			defer conn.Close()
+			select {
+			case <-gctx.Done():
+				return
+			default:
+			}
+		}
+	}(srv.addr(), srv.readyDelay, ictx, srv.t)
+
+	return ictx, func() {
+		var (
+			t    = srv.t
+			addr = srv.addr()
+		)
+		icancel()
+		// Dial to the server so that listener.Accept progresses and the ctx.Done() case is
+		// selected.
+		conn, err := net.Dial("tcp", addr)
+		if err != nil {
+			t.Logf("Error: test server %s shutdown may have failed: %s", addr, err)
+			return
+		}
+		conn.Close()
+	}
+}
+
+// tcpServerGroup is a helper container for starting multiple TCP servers.
+type tcpServerGroup struct {
+	servers []*tcpServer
+	t       *testing.T
+}
+
+// start starts all the TCP servers in the group, ensuring they do so at the same time. It returns a
+// context.Context based on the input context, along with a cancellation function for stopping all
+// the servers and ensuring proper cleanup.
+func (grp *tcpServerGroup) start(ctx context.Context) (context.Context, context.CancelFunc) {
+	var (
+		wgStart, wgEnd sync.WaitGroup
+		ictx, icancel  = context.WithCancel(ctx)
+	)
+
+	// Track start and end jobs.
+	wgStart.Add(1)
+	wgEnd.Add(1)
+
+	for _, srv := range grp.servers {
+		go func(srv *tcpServer, ictx context.Context, wgStart, wgEnd *sync.WaitGroup) {
+			wgStart.Wait()
+			_, cancel := srv.start(ictx)
+			// Wait until outer scope calls wgEnd.Done.
+			wgEnd.Wait()
+			cancel()
+		}(srv, ictx, &wgStart, &wgEnd)
+	}
+	// Start all servers at the same time.
+	wgStart.Done()
+
+	return ictx, func() {
+		icancel()
+		// Release wgEnd.Wait() block in all launched goroutines.
+		wgEnd.Done()
+	}
+}
+
+// messageBox is a test helper container for messages emitted by the wait operations.
+type messageBox struct {
+	msgs []Message
+}
+
+// newMessageBox creates a messageBox by draining all the messages from the given channel.
+func newMessageBox(ch <-chan Message) *messageBox {
+	msgs := make([]Message, 0)
+	for msg := range ch {
+		msgs = append(msgs, msg)
+	}
+	return &messageBox{msgs: msgs}
+}
+
+// count returns the number of messages in the box.
+func (mb *messageBox) count() int {
+	return len(mb.msgs)
+}
+
+// filterByTCPAddr returns a new message box containing only TCPMessages with the given address.
+func (mb *messageBox) filterByTCPAddr(addr string) *messageBox {
+	filtered := make([]Message, 0)
+	for _, msg := range mb.msgs {
+		if tcpMsg, isTCPMessage := msg.(*TCPMessage); isTCPMessage && tcpMsg.Addr() == addr {
+			filtered = append(filtered, tcpMsg)
+		}
+	}
+	return &messageBox{msgs: filtered}
+}
+
+func TestAllTCPReady(t *testing.T) {
+	t.Parallel()
+
+	var (
+		waitTimeout = 5 * time.Second
+		servers     = []*tcpServer{
+			{tcpServerHost, getLocalTCPPort(), 0 * time.Second, t},
+			{tcpServerHost, getLocalTCPPort(), 3 * time.Second, t},
+		}
+		group = tcpServerGroup{servers: servers, t: t}
+	)
+
+	_, cancel := group.start(context.Background())
+	defer cancel()
+
+	msgs := AllTCP(
+		[]*TCPSpec{
+			{servers[0].host, servers[0].port, 500 * time.Millisecond},
+			{servers[1].host, servers[1].port, 500 * time.Millisecond},
+		},
+		waitTimeout,
+	)
+
+	// There must be 4 messages in total.
+	mb := newMessageBox(msgs)
+	if msgCount := mb.count(); msgCount != 4 {
+		t.Fatalf("test failed - want %d messages, got %d", 4, msgCount)
+	}
+
+	// The last message's ElapsedTime must be less than waitTimeout.
+	if elTime := mb.msgs[mb.count()-1].ElapsedTime(); elTime >= waitTimeout {
+		t.Errorf("test failed - elapsed time %s exceeded timeout limit of %s", elTime, waitTimeout)
+	}
+
+	// The messages from waiting for the first server must be as expected.
+	addr1 := servers[0].addr()
+	mb1 := mb.filterByTCPAddr(addr1)
+	if msgCount := mb1.count(); msgCount != 2 {
+		t.Fatalf("test[%s] failed - want %d messages, got %d", addr1, 2, msgCount)
+	}
+	if status := mb1.msgs[0].Status(); status != Start {
+		t.Errorf("test[%s] msgs[0].Status() failed - want: %s, got %s", addr1, Start, status)
+	}
+	if status := mb1.msgs[1].Status(); status != Ready {
+		t.Errorf("test[%s] msgs[1].Status() failed - want: %s, got %s", addr1, Ready, status)
+	}
+
+	// The messages from waiting for the second server must be as expected.
+	addr2 := servers[1].addr()
+	mb2 := mb.filterByTCPAddr(addr2)
+	if msgCount := mb2.count(); msgCount != 2 {
+		t.Fatalf("test[%s] failed - want %d messages, got %d", addr2, 2, msgCount)
+	}
+	if status := mb2.msgs[0].Status(); status != Start {
+		t.Errorf("test[%s] msgs[0].Status() failed - want: %s, got %s", addr2, Start, status)
+	}
+	if status := mb2.msgs[1].Status(); status != Ready {
+		t.Errorf("test[%s] msgs[1].Status() failed - want: %s, got %s", addr2, Ready, status)
 	}
 }
