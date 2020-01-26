@@ -96,6 +96,9 @@ func (msg *TCPMessage) Addr() string {
 }
 
 func (msg *TCPMessage) Target() string {
+	if msg.spec == nil {
+		return "<none>"
+	}
 	return "tcp://" + msg.Addr()
 }
 
