@@ -158,7 +158,6 @@ func (srv *tcpServer) start(ctx context.Context) (context.Context, context.Cance
 		select {
 		// Handle case when the goroutine needs to be killed prior to server start.
 		case <-gctx.Done():
-			t.Logf("aborting test TCP server %q startup: %s", addr, gctx.Err())
 			return
 		// Expected flow: wait for `delay` before starting the server.
 		case <-time.After(delay):
@@ -187,16 +186,12 @@ func (srv *tcpServer) start(ctx context.Context) (context.Context, context.Cance
 	}(srv.addr(), srv.readyDelay, ictx, srv.t)
 
 	return ictx, func() {
-		var (
-			t    = srv.t
-			addr = srv.addr()
-		)
+		var addr = srv.addr()
 		icancel()
 		// Dial to the server so that listener.Accept progresses and the ctx.Done() case is
 		// selected.
 		conn, err := net.Dial("tcp", addr)
 		if err != nil {
-			t.Logf("Error: test server %s shutdown may have failed: %s", addr, err)
 			return
 		}
 		conn.Close()
@@ -316,6 +311,68 @@ func TestAllTCPReady(t *testing.T) {
 	}
 	if status := mb1.msgs[1].Status(); status != Ready {
 		t.Errorf("test[%s] msgs[1].Status() failed - want: %s, got %s", addr1, Ready, status)
+	}
+
+	// The messages from waiting for the second server must be as expected.
+	addr2 := servers[1].addr()
+	mb2 := mb.filterByTCPAddr(addr2)
+	if msgCount := mb2.count(); msgCount != 2 {
+		t.Fatalf("test[%s] failed - want %d messages, got %d", addr2, 2, msgCount)
+	}
+	if status := mb2.msgs[0].Status(); status != Start {
+		t.Errorf("test[%s] msgs[0].Status() failed - want: %s, got %s", addr2, Start, status)
+	}
+	if status := mb2.msgs[1].Status(); status != Ready {
+		t.Errorf("test[%s] msgs[1].Status() failed - want: %s, got %s", addr2, Ready, status)
+	}
+}
+
+func TestAllTCPTimeout(t *testing.T) {
+	t.Parallel()
+
+	var (
+		waitTimeout = 5 * time.Second
+		servers     = []*tcpServer{
+			{tcpServerHost, getLocalTCPPort(), 10 * time.Second, t},
+			{tcpServerHost, getLocalTCPPort(), 1 * time.Second, t},
+		}
+		group = tcpServerGroup{servers: servers, t: t}
+	)
+
+	_, cancel := group.start(context.Background())
+	defer cancel()
+
+	msgs := AllTCP(
+		[]*TCPSpec{
+			{servers[0].host, servers[0].port, 500 * time.Millisecond},
+			{servers[1].host, servers[1].port, 500 * time.Millisecond},
+		},
+		waitTimeout,
+	)
+
+	// There must be 4 messages in total.
+	mb := newMessageBox(msgs)
+	if msgCount := mb.count(); msgCount != 4 {
+		t.Fatalf("test failed - want %d messages, got %d", 4, msgCount)
+	}
+
+	// The last message's ElapsedTime must be at least equal to waitTimeout.
+	if elTime := mb.msgs[mb.count()-1].ElapsedTime(); elTime < waitTimeout {
+		t.Errorf("test failed - elapsed time %s exceeded timeout limit of %s", elTime, waitTimeout)
+	}
+	// The last one must be a timeout failure.
+	if status := mb.msgs[mb.count()-1].Status(); status != Failed {
+		t.Errorf("test failed msgs[-1].Status() failed - want: %s, got %s", Failed, status)
+	}
+
+	// The messages from waiting for the first server must be as expected.
+	addr1 := servers[0].addr()
+	mb1 := mb.filterByTCPAddr(addr1)
+	if msgCount := mb1.count(); msgCount != 1 {
+		t.Fatalf("test[%s] failed - want %d messages, got %d", addr1, 1, msgCount)
+	}
+	if status := mb1.msgs[0].Status(); status != Start {
+		t.Errorf("test[%s] msgs[0].Status() failed - want: %s, got %s", addr1, Start, status)
 	}
 
 	// The messages from waiting for the second server must be as expected.
