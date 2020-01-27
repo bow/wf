@@ -299,6 +299,45 @@ func (mb *messageBox) filterByTCPAddr(addr string) *messageBox {
 	return &messageBox{msgs: filtered}
 }
 
+func TestOneTCPReady(t *testing.T) {
+	t.Parallel()
+
+	var (
+		waitTimeout = 3 * time.Second
+		server      = &tcpServer{
+			host:       tcpServerHost,
+			port:       getLocalTCPPort(),
+			readyDelay: 1 * time.Second,
+			t:          t,
+		}
+		spec = &TCPSpec{Host: server.host, Port: server.port, PollFreq: 500 * time.Millisecond}
+	)
+
+	_, cancel := server.start(context.Background())
+	defer cancel()
+
+	msgs := OneTCP(spec, waitTimeout)
+
+	// There must be 2 messages in total.
+	mb := newMessageBox(msgs)
+	if msgCount := mb.count(); msgCount != 2 {
+		t.Fatalf("test failed - want %d messages, got %d", 2, msgCount)
+	}
+
+	// The last message's ElapsedTime must be at least equal to waitTimeout.
+	if elTime := mb.msgs[mb.count()-1].ElapsedTime(); elTime >= waitTimeout {
+		t.Errorf("test failed - elapsed time %s exceeded timeout limit of %s", elTime, waitTimeout)
+	}
+
+	// The messages from waiting for the server must be as expected.
+	if status := mb.msgs[0].Status(); status != Start {
+		t.Errorf("test msgs.Status() failed - want: %s, got %s", Start, status)
+	}
+	if status := mb.msgs[1].Status(); status != Ready {
+		t.Errorf("test msgs.Status() failed - want: %s, got %s", Ready, status)
+	}
+}
+
 func TestAllTCPReady(t *testing.T) {
 	t.Parallel()
 

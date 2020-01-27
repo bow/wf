@@ -236,12 +236,9 @@ func ParseTCPSpecs(rawAddrs []string, defaultPollFreq time.Duration) ([]*TCPSpec
 	return specs, nil
 }
 
-// SingleTCP waits until a TCP connection can be made to an address, attempting a connection every
-// defined interval. Both of these are contained in the given specifications. It also accepts a
-// context function, which it uses to listen to cancellation events from the parent context.
-// The returned channel is closed after the wait operation has finished or if the parent context is
-// cancelled.
-func SingleTCP(ctx context.Context, spec *TCPSpec) <-chan *TCPMessage {
+// singleTCP is a helper function for checking TCP server status that accepts a cancellable parent
+// context, along with specifications of which server to poll.
+func singleTCP(ctx context.Context, spec *TCPSpec) <-chan *TCPMessage {
 	startTime := startTimeFromContext(ctx)
 	out := make(chan *TCPMessage, 2)
 
@@ -291,6 +288,15 @@ func SingleTCP(ctx context.Context, spec *TCPSpec) <-chan *TCPMessage {
 	return out
 }
 
+// OneTCP waits until a TCP connection can be made to an address, attempting a connection every
+// defined interval. Both of these are contained in the given specifications. It also accepts a
+// context function, which it uses to listen to cancellation events from the parent context.
+// The returned channel is closed after the wait operation has finished or if the parent context is
+// cancelled.
+func OneTCP(spec *TCPSpec, waitTimeout time.Duration) <-chan *TCPMessage {
+	return AllTCP([]*TCPSpec{spec}, waitTimeout)
+}
+
 // AllTCP waits until connections can be made to all given TCP input specifications for at most
 // `waitTimeout` long. It returns a channel through which all wait operation-related messages will
 // be sent.  The returned channel is closed after all wait operations have finished.
@@ -308,7 +314,7 @@ func AllTCP(specs []*TCPSpec, waitTimeout time.Duration) <-chan *TCPMessage {
 	)
 
 	for i, spec := range specs {
-		chs[i] = SingleTCP(ctx, spec)
+		chs[i] = singleTCP(ctx, spec)
 	}
 
 	msgs := merge(chs)
