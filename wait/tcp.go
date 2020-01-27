@@ -14,16 +14,16 @@ var (
 		"^(?P<schema>(?P<proto>[A-Za-z]+)://)?(?P<host>[^#]+)(#(?P<freq>.+))?",
 	)
 	protoPort = map[string]string{
-		"amqp":  "5672",
-		"amqps": "5671",
-		"http":  "80",
-		"https": "443",
-		"imap":  "143",
-		"mysql": "3306",
-		"ldap":  "389",
-		"ldaps": "636",
-		"psql":  "5432",
-		"smtp":  "25",
+		"amqp":       "5672",
+		"amqps":      "5671",
+		"http":       "80",
+		"https":      "443",
+		"imap":       "143",
+		"mysql":      "3306",
+		"ldap":       "389",
+		"ldaps":      "636",
+		"postgresql": "5432",
+		"smtp":       "25",
 	}
 )
 
