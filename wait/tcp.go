@@ -118,11 +118,12 @@ type ctxKey int
 
 const startTimeCtxKey ctxKey = 0
 
-func NewContext(ctx context.Context, startTime time.Time) context.Context {
-	return context.WithValue(ctx, startTimeCtxKey, startTime)
+func newContext(bctx context.Context) (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithCancel(bctx)
+	return context.WithValue(ctx, startTimeCtxKey, time.Now()), cancel
 }
 
-func StartTimeFromContext(ctx context.Context) time.Time {
+func startTimeFromContext(ctx context.Context) time.Time {
 	startTime, ok := ctx.Value(startTimeCtxKey).(time.Time)
 	if !ok {
 		return time.Now()
@@ -197,7 +198,7 @@ func ParseTCPSpecs(rawAddrs []string, defaultPollFreq time.Duration) ([]*TCPSpec
 
 // SingleTCP waits until a TCP connection can be made to the given address.
 func SingleTCP(ctx context.Context, spec *TCPSpec) <-chan *TCPMessage {
-	startTime := StartTimeFromContext(ctx)
+	startTime := startTimeFromContext(ctx)
 	out := make(chan *TCPMessage, 2)
 
 	checkConn := func() *TCPMessage {
@@ -257,17 +258,16 @@ func AllTCP(specs []*TCPSpec, waitTimeout time.Duration) <-chan Message {
 	var (
 		chs         = make([](<-chan *TCPMessage), len(specs))
 		out         = make(chan Message)
-		startTime   = time.Now()
-		timeout     = time.NewTimer(waitTimeout)
-		ctx, cancel = context.WithCancel(context.Background())
+		ctx, cancel = newContext(context.Background())
 	)
-	ctx = context.WithValue(ctx, startTimeCtxKey, startTime)
 
 	for i, spec := range specs {
 		chs[i] = SingleTCP(ctx, spec)
 	}
 
 	msgs := merge(chs)
+	timeout := time.NewTimer(waitTimeout)
+
 	go func() {
 		defer timeout.Stop()
 		defer cancel()
@@ -278,7 +278,7 @@ func AllTCP(specs []*TCPSpec, waitTimeout time.Duration) <-chan Message {
 			case <-timeout.C:
 				msg := newTCPMessageFailed(
 					nil,
-					startTime,
+					startTimeFromContext(ctx),
 					fmt.Errorf("exceeded timeout limit of %s", waitTimeout),
 				)
 				out <- msg
