@@ -294,7 +294,7 @@ func SingleTCP(ctx context.Context, spec *TCPSpec) <-chan *TCPMessage {
 // AllTCP waits until connections can be made to all given TCP input specifications for at most
 // `waitTimeout` long. It returns a channel through which all wait operation-related messages will
 // be sent.  The returned channel is closed after all wait operations have finished.
-func AllTCP(specs []*TCPSpec, waitTimeout time.Duration) <-chan Message {
+func AllTCP(specs []*TCPSpec, waitTimeout time.Duration) <-chan *TCPMessage {
 
 	addrs := make([]string, len(specs))
 	for i, spec := range specs {
@@ -303,7 +303,7 @@ func AllTCP(specs []*TCPSpec, waitTimeout time.Duration) <-chan Message {
 
 	var (
 		chs         = make([](<-chan *TCPMessage), len(specs))
-		out         = make(chan Message)
+		out         = make(chan *TCPMessage)
 		ctx, cancel = newContext()
 	)
 

@@ -275,7 +275,7 @@ type messageBox struct {
 }
 
 // newMessageBox creates a messageBox by draining all the messages from the given channel.
-func newMessageBox(ch <-chan Message) *messageBox {
+func newMessageBox(ch <-chan *TCPMessage) *messageBox {
 	msgs := make([]Message, 0)
 	for msg := range ch {
 		msgs = append(msgs, msg)
