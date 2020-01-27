@@ -92,6 +92,9 @@ func (msg *TCPMessage) Status() Status {
 
 // Addr is the address being waited.
 func (msg *TCPMessage) Addr() string {
+	if msg.spec == nil {
+		return "<none>"
+	}
 	return msg.spec.Addr()
 }
 
