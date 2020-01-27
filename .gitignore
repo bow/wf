@@ -6,6 +6,8 @@
 # Binaries for programs and plugins
 wait-for
 !wait-for/
+c.out
+c.html
 *.exe
 *.exe~
 *.dll

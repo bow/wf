@@ -5,5 +5,18 @@ language: go
 go:
   - "1.13"
 
+env:
+  global:
+    - CC_TEST_REPORTER_ID=31b220a84cfa0bd0fc89eea0512365c06d17a3a4357b391df0ddf363743db9ff
+
+before_script:
+  - curl -L https://codeclimate.com/downloads/test-reporter/test-reporter-latest-linux-amd64 > ./cc-test-reporter
+  - chmod +x ./cc-test-reporter
+  - ./cc-test-reporter before-build
+
 script:
-  - "go test -race -v ./wait"
+  - "go test -race -coverprofile c.out -v ./wait"
+
+after_success:
+  - if [[ "$TRAVIS_PULL_REQUEST" == "false" ]]; then ./cc-test-reporter format-coverage --input-type gocov c.out; fi
+  - if [[ "$TRAVIS_PULL_REQUEST" == "false" ]]; then ./cc-test-reporter upload-coverage; fi
