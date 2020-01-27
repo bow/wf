@@ -391,7 +391,7 @@ func TestAllTCPTimeout(t *testing.T) {
 
 	// The last message's ElapsedTime must be at least equal to waitTimeout.
 	if elTime := mb.msgs[mb.count()-1].ElapsedTime(); elTime < waitTimeout {
-		t.Errorf("test failed - elapsed time %s exceeded timeout limit of %s", elTime, waitTimeout)
+		t.Errorf("test failed - elapsed time %s is less than timeout limit of %s", elTime, waitTimeout)
 	}
 	// The last one must be a timeout failure.
 	if status := mb.msgs[mb.count()-1].Status(); status != Failed {
