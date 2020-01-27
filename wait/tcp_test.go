@@ -117,6 +117,39 @@ func TestParseTCPSpec(t *testing.T) {
 	}
 }
 
+func ExampleParseTCPSpec() {
+	spec, _ := ParseTCPSpec("golang.org:80", 1*time.Second)
+	fmt.Println("host:", spec.Host)
+	fmt.Println("port:", spec.Port)
+	fmt.Println("poll freq:", spec.PollFreq)
+	// Output:
+	// host: golang.org
+	// port: 80
+	// poll freq: 1s
+}
+
+func ExampleParseTCPSpec_proto() {
+	spec, _ := ParseTCPSpec("https://golang.org", 1*time.Second)
+	fmt.Println("host:", spec.Host)
+	fmt.Println("port:", spec.Port)
+	fmt.Println("poll freq:", spec.PollFreq)
+	// Output:
+	// host: golang.org
+	// port: 443
+	// poll freq: 1s
+}
+
+func ExampleParseTCPSpec_freq() {
+	spec, _ := ParseTCPSpec("amqps://127.0.0.1#500ms", 1*time.Second)
+	fmt.Println("host:", spec.Host)
+	fmt.Println("port:", spec.Port)
+	fmt.Println("poll freq:", spec.PollFreq)
+	// Output:
+	// host: 127.0.0.1
+	// port: 5671
+	// poll freq: 500ms
+}
+
 // tcpServerHost is the hostname for the test TCP server.
 const tcpServerHost = "127.0.0.1"
 

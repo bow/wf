@@ -4,7 +4,7 @@
 ![cov](https://img.shields.io/codeclimate/coverage/bow/wait-for?color=007c5b&style=flat-square)
 ![qual](https://img.shields.io/codeclimate/maintainability/bow/wait-for?color=007c5b&style=flat-square)
 
-`wait-for` launches processes based on the availability of multiple TCP addresses.
+`wait-for` waits until TCP server(s) are ready to accept connections.
 
 ## Credits
 

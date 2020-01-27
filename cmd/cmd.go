@@ -13,9 +13,10 @@ import (
 const (
 	appName        = "wait-for"
 	appVersion     = "0.0.0"
-	appDescription = "Launch process when TCP server(s) are ready"
+	appDescription = "Wait until TCP server(s) are ready to accept connections"
 )
 
+// Execute peforms the actual CLI argument parsing and launches the wait operation.
 func Execute() error {
 	var (
 		waitTimeout time.Duration
