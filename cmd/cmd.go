@@ -19,9 +19,9 @@ const (
 // Execute peforms the actual CLI argument parsing and launches the wait operation.
 func Execute() error {
 	var (
-		waitTimeout time.Duration
-		pollFreq    time.Duration
-		isQuiet     bool
+		waitTimeout     time.Duration
+		defaultPollFreq time.Duration
+		isQuiet         bool
 	)
 
 	cmd := &cobra.Command{
@@ -38,48 +38,9 @@ func Execute() error {
 		},
 
 		Run: func(cmd *cobra.Command, args []string) {
-			var rawAddrs []string
-			if dashIdx := cmd.ArgsLenAtDash(); dashIdx == -1 {
-				rawAddrs = args
-			} else {
-				rawAddrs = args[:dashIdx]
-			}
-
-			specs, err := wait.ParseTCPSpecs(rawAddrs, pollFreq)
-			if err != nil {
-				fmt.Printf("%7s: %s\n", "ERROR", err)
-				os.Exit(1)
-			}
-
-			var (
-				msg   wait.Message
-				showF = func(wait.Message) {}
-			)
-			if !isQuiet {
-				showF = func(msg wait.Message) {
-					var disp string
-
-					switch msg.Status() {
-					case wait.Start:
-						disp = fmt.Sprintf("%7s: %s for %s", "waiting", msg.Target(), waitTimeout)
-					case wait.Ready:
-						disp = fmt.Sprintf("%7s: %s in %s", wait.Ready, msg.Target(), msg.ElapsedTime())
-					case wait.Failed:
-						disp = fmt.Sprintf("%7s: %s", wait.Failed, msg.Err())
-					}
-
-					fmt.Println(disp)
-				}
-			}
-			for msg = range wait.AllTCP(specs, waitTimeout) {
-				showF(msg)
-				if err := msg.Err(); err != nil {
-					os.Exit(1)
-				}
-			}
-			// nolint:errcheck
-			if !isQuiet {
-				fmt.Printf("%7s: all ready in %s\n", "OK", msg.ElapsedTime())
+			exitCode := run(cmd, args, waitTimeout, defaultPollFreq, isQuiet)
+			if exitCode != 0 {
+				os.Exit(exitCode)
 			}
 		},
 	}
@@ -87,8 +48,75 @@ func Execute() error {
 	flagSet := cmd.Flags()
 	flagSet.SortFlags = false
 	flagSet.DurationVarP(&waitTimeout, "timeout", "t", 5*time.Second, "set wait timeout")
-	flagSet.DurationVarP(&pollFreq, "poll-freq", "f", 500*time.Millisecond, "set connection poll frequency")
+	flagSet.DurationVarP(
+		&defaultPollFreq,
+		"poll-freq",
+		"f",
+		500*time.Millisecond,
+		"set connection poll frequency",
+	)
 	flagSet.BoolVarP(&isQuiet, "quiet", "q", false, "suppress waiting messages")
 
 	return cmd.Execute()
+}
+
+// run calls the actual function for waiting.
+func run(
+	cmd *cobra.Command,
+	args []string,
+	waitTimeout, defaultPollFreq time.Duration,
+	isQuiet bool,
+) int {
+	var rawAddrs []string
+	if dashIdx := cmd.ArgsLenAtDash(); dashIdx == -1 {
+		rawAddrs = args
+	} else {
+		rawAddrs = args[:dashIdx]
+	}
+
+	specs, err := wait.ParseTCPSpecs(rawAddrs, defaultPollFreq)
+	if err != nil {
+		fmt.Printf("%7s: %s\n", "ERROR", err)
+		return 1
+	}
+
+	var (
+		msg       wait.Message
+		showMsg   = func(wait.Message) {}
+		showFinal = func(wait.Message) {}
+	)
+	if !isQuiet {
+		showMsg = func(msg wait.Message) {
+			var disp string
+
+			switch msg.Status() {
+			case wait.Start:
+				disp = fmt.Sprintf("%7s: %s for %s", "waiting", msg.Target(), waitTimeout)
+			case wait.Ready:
+				disp = fmt.Sprintf(
+					"%7s: %s in %s",
+					wait.Ready,
+					msg.Target(),
+					msg.ElapsedTime(),
+				)
+			case wait.Failed:
+				disp = fmt.Sprintf("%7s: %s", wait.Failed, msg.Err())
+			}
+
+			fmt.Println(disp)
+		}
+		showFinal = func(msg wait.Message) {
+			fmt.Printf("%7s: all ready in %s\n", "OK", msg.ElapsedTime())
+		}
+	}
+
+	for msg = range wait.AllTCP(specs, waitTimeout) {
+		showMsg(msg)
+		if err := msg.Err(); err != nil {
+			return 1
+		}
+	}
+	showFinal(msg)
+
+	return 0
 }
