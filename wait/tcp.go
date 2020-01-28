@@ -228,7 +228,7 @@ func ParseTCPSpecs(rawAddrs []string, defaultPollFreq time.Duration) ([]*TCPSpec
 	for i, rawAddr := range rawAddrs {
 		spec, err := ParseTCPSpec(rawAddr, defaultPollFreq)
 		if err != nil {
-			return []*TCPSpec{}, err
+			return []*TCPSpec{}, fmt.Errorf("address %d: %s", i, err)
 		}
 		specs[i] = spec
 	}

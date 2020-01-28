@@ -150,6 +150,84 @@ func ExampleParseTCPSpec_freq() {
 	// poll freq: 500ms
 }
 
+func TestParseTCPSpecs(t *testing.T) {
+	t.Parallel()
+
+	var commonPollFreq = 1 * time.Second
+	var tests = []struct {
+		name     string
+		in       []string
+		expSpecs []*TCPSpec
+		expErr   error
+	}{
+		{
+			"all ok",
+			[]string{
+				"127.0.0.1:3000",
+				"https://golang.org",
+				"localhost:1234#200ms",
+			},
+			[]*TCPSpec{
+				{"127.0.0.1", "3000", 1 * time.Second},
+				{"golang.org", "443", 1 * time.Second},
+				{"localhost", "1234", 200 * time.Millisecond},
+			},
+			nil,
+		},
+		{
+			"some err",
+			[]string{
+				"127.0.0.1:3000",
+				"localhost",
+				"localhost:1234#200ms",
+			},
+			[]*TCPSpec{},
+			fmt.Errorf("address 1: neither port nor protocol is given"),
+		},
+	}
+
+	for i, test := range tests {
+		i := i
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			name := test.name
+			expSpecs := test.expSpecs
+			expErr := test.expErr
+
+			gots, err := ParseTCPSpecs(test.in, commonPollFreq)
+
+			if expErr != nil && err.Error() != expErr.Error() {
+				t.Errorf("test[%d] %q failed - want error: %q, got: %q", i, name, expErr, err)
+			}
+
+			if len(expSpecs) != len(gots) {
+				t.Fatalf(
+					"test[%d] %q failed - want: %d specs, got: %d",
+					i,
+					name,
+					len(expSpecs),
+					len(gots),
+				)
+			}
+			for j, expSpec := range expSpecs {
+				got := gots[j]
+				if expErr == nil && *expSpec != *got {
+					t.Errorf(
+						"test[%d][%d] %q failed - got spec: %+v, want: %+v",
+						i,
+						j,
+						name,
+						*got,
+						*expSpec,
+					)
+				}
+			}
+		})
+	}
+}
+
 // tcpServerHost is the hostname for the test TCP server.
 const tcpServerHost = "127.0.0.1"
 
