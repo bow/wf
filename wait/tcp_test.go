@@ -10,6 +10,47 @@ import (
 	"time"
 )
 
+func TestMessageTarget(t *testing.T) {
+	t.Parallel()
+
+	var tests = []struct {
+		name string
+		in   Message
+		want string
+	}{
+		{
+			"with TCPSpec",
+			newTCPMessageReady(
+				&TCPSpec{Host: "localhost", Port: "7000", PollFreq: 1 * time.Second},
+				time.Now(),
+			),
+			"tcp://localhost:7000",
+		},
+		{
+			"no TCPSpec",
+			newTCPMessageFailed(nil, time.Now(), fmt.Errorf("stub")),
+			"<none>",
+		},
+	}
+
+	for i, test := range tests {
+		i := i
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			name := test.name
+			want := test.want
+
+			got := test.in.Target()
+
+			if want != got {
+				t.Errorf("test[%d] %q failed - want: %q, got: %q", i, name, want, got)
+			}
+		})
+	}
+}
+
 func TestParseTCPSpec(t *testing.T) {
 	t.Parallel()
 
