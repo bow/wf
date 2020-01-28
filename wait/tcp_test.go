@@ -36,12 +36,12 @@ func TestMessageTarget(t *testing.T) {
 	for i, test := range tests {
 		i := i
 		test := test
+
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
 			name := test.name
 			want := test.want
-
 			got := test.in.Target()
 
 			if want != got {
@@ -56,10 +56,10 @@ func TestParseTCPSpec(t *testing.T) {
 
 	var commonPollFreq = 1 * time.Second
 	var tests = []struct {
-		name    string
-		in      string
-		expSpec *TCPSpec
-		expErr  error
+		name     string
+		in       string
+		wantSpec *TCPSpec
+		wantErr  error
 	}{
 		{
 			"no protocol, no port",
@@ -138,21 +138,27 @@ func TestParseTCPSpec(t *testing.T) {
 	for i, test := range tests {
 		i := i
 		test := test
+
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
 			name := test.name
-			expSpec := test.expSpec
-			expErr := test.expErr
+			wantSpec := test.wantSpec
+			wantErr := test.wantErr
+			gotSpec, gotErr := ParseTCPSpec(test.in, commonPollFreq)
 
-			obs, err := ParseTCPSpec(test.in, commonPollFreq)
-
-			if expErr != nil && err.Error() != expErr.Error() {
-				t.Errorf("test[%d] %q failed - got error: %q, want: %q", i, name, err, expErr)
+			if wantErr != nil && gotErr.Error() != wantErr.Error() {
+				t.Errorf("test[%d] %q failed - want err: %q, got: %q", i, name, wantErr, gotErr)
 			}
 
-			if expErr == nil && *expSpec != *obs {
-				t.Errorf("test[%d] %q failed - got spec: %+v, want: %+v", i, name, *obs, *expSpec)
+			if wantErr == nil && *wantSpec != *gotSpec {
+				t.Errorf(
+					"test[%d] %q failed - want spec: %+v, got: %+v",
+					i,
+					name,
+					*wantSpec,
+					*gotSpec,
+				)
 			}
 		})
 	}
@@ -196,10 +202,10 @@ func TestParseTCPSpecs(t *testing.T) {
 
 	var commonPollFreq = 1 * time.Second
 	var tests = []struct {
-		name     string
-		in       []string
-		expSpecs []*TCPSpec
-		expErr   error
+		name      string
+		in        []string
+		wantSpecs []*TCPSpec
+		wantErr   error
 	}{
 		{
 			"all ok",
@@ -234,34 +240,34 @@ func TestParseTCPSpecs(t *testing.T) {
 			t.Parallel()
 
 			name := test.name
-			expSpecs := test.expSpecs
-			expErr := test.expErr
+			wantSpecs := test.wantSpecs
+			wantErr := test.wantErr
 
-			gots, err := ParseTCPSpecs(test.in, commonPollFreq)
+			gotSpecs, gotErr := ParseTCPSpecs(test.in, commonPollFreq)
 
-			if expErr != nil && err.Error() != expErr.Error() {
-				t.Errorf("test[%d] %q failed - want error: %q, got: %q", i, name, expErr, err)
+			if wantErr != nil && gotErr.Error() != wantErr.Error() {
+				t.Errorf("test[%d] %q failed - want error: %q, got: %q", i, name, wantErr, gotErr)
 			}
 
-			if len(expSpecs) != len(gots) {
+			if len(wantSpecs) != len(gotSpecs) {
 				t.Fatalf(
 					"test[%d] %q failed - want: %d specs, got: %d",
 					i,
 					name,
-					len(expSpecs),
-					len(gots),
+					len(wantSpecs),
+					len(gotSpecs),
 				)
 			}
-			for j, expSpec := range expSpecs {
-				got := gots[j]
-				if expErr == nil && *expSpec != *got {
+			for j, wantSpec := range wantSpecs {
+				gotSpec := gotSpecs[j]
+				if wantErr == nil && *wantSpec != *gotSpec {
 					t.Errorf(
 						"test[%d][%d] %q failed - got spec: %+v, want: %+v",
 						i,
 						j,
 						name,
-						*got,
-						*expSpec,
+						*gotSpec,
+						*wantSpec,
 					)
 				}
 			}
@@ -450,10 +456,10 @@ func TestOneTCPReady(t *testing.T) {
 
 	// The messages from waiting for the server must be as expected.
 	if status := mb.msgs[0].Status(); status != Start {
-		t.Errorf("test msgs.Status() failed - want: %s, got %s", Start, status)
+		t.Errorf("test msgs[0].Status() failed - want: %s, got %s", Start, status)
 	}
 	if status := mb.msgs[1].Status(); status != Ready {
-		t.Errorf("test msgs.Status() failed - want: %s, got %s", Ready, status)
+		t.Errorf("test msgs[1].Status() failed - want: %s, got %s", Ready, status)
 	}
 }
 
@@ -553,24 +559,24 @@ func TestAllTCPTimeout(t *testing.T) {
 	}
 	// The last one must be a timeout failure.
 	if status := mb.msgs[mb.count()-1].Status(); status != Failed {
-		t.Errorf("test failed msgs[-1].Status() failed - want: %s, got %s", Failed, status)
+		t.Errorf("test failed msgs[-1].Status() failed - want: %s, got: %s", Failed, status)
 	}
 
 	// The messages from waiting for the first server must be as expected.
 	addr1 := servers[0].addr()
 	mb1 := mb.filterByTCPAddr(addr1)
 	if msgCount := mb1.count(); msgCount != 1 {
-		t.Fatalf("test[%s] failed - want %d messages, got %d", addr1, 1, msgCount)
+		t.Fatalf("test[%s] failed - want: %d messages, got: %d", addr1, 1, msgCount)
 	}
 	if status := mb1.msgs[0].Status(); status != Start {
-		t.Errorf("test[%s] msgs[0].Status() failed - want: %s, got %s", addr1, Start, status)
+		t.Errorf("test[%s] msgs[0].Status() failed - want: %s, got: %s", addr1, Start, status)
 	}
 
 	// The messages from waiting for the second server must be as expected.
 	addr2 := servers[1].addr()
 	mb2 := mb.filterByTCPAddr(addr2)
 	if msgCount := mb2.count(); msgCount != 2 {
-		t.Fatalf("test[%s] failed - want %d messages, got %d", addr2, 2, msgCount)
+		t.Fatalf("test[%s] failed - want: %d messages, got: %d", addr2, 2, msgCount)
 	}
 	if status := mb2.msgs[0].Status(); status != Start {
 		t.Errorf("test[%s] msgs[0].Status() failed - want: %s, got %s", addr2, Start, status)
