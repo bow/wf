@@ -1,3 +1,5 @@
+// Package cmd provides the command line interface for the
+// https://godoc.org/github.com/bow/wait-for/wait package.
 package cmd
 
 import (
@@ -16,7 +18,7 @@ const (
 	appDescription = "Wait until TCP server(s) are ready to accept connections"
 )
 
-// Execute peforms the actual CLI argument parsing and launches the wait operation.
+// Execute peforms the actual command line argument parsing and launches the wait operation.
 func Execute() error {
 	var (
 		waitTimeout     time.Duration
