@@ -7,7 +7,7 @@ go:
 
 env:
   global:
-    - CC_TEST_REPORTER_ID=31b220a84cfa0bd0fc89eea0512365c06d17a3a4357b391df0ddf363743db9ff
+    - CC_TEST_REPORTER_ID=96f82ebb3d931a3f2d22c8e9c4f025b9a8a1daf9b9928ec4b66c5bea48d202d4
 
 before_script:
   - curl -L https://codeclimate.com/downloads/test-reporter/test-reporter-latest-linux-amd64 > ./cc-test-reporter
