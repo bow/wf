@@ -51,8 +51,8 @@ platforms may work but have not been tested.
     # Run the tests.
     $ make test
 
-    # Build the binary.
-    $ make build
+    # Build the wf binary.
+    $ make wf
 
 
 ## Credits
