@@ -13,12 +13,17 @@ import (
 )
 
 const (
-	appName        = "wf"
-	appVersion     = "0.0.0"
-	appDescription = "Wait until TCP server(s) are ready to accept connections"
+	name = "wf"
+	desc = "Wait until TCP server(s) are ready to accept connections"
 )
 
-// Execute peforms the actual command line argument parsing and launches the wait operation.
+var (
+	// These are meant to be overidden at built time using ldflags -X.
+	buildTime = "?"
+	version   = "dev"
+)
+
+// Execute peforms the actual CLI argument parsing and launches the wait operation.
 func Execute() error {
 	var (
 		waitTimeout     time.Duration
@@ -27,9 +32,9 @@ func Execute() error {
 	)
 
 	cmd := &cobra.Command{
-		Use:                   appName + " [FLAGS] ADDRESS...",
-		Short:                 appDescription,
-		Version:               appVersion,
+		Use:                   name + " [FLAGS] ADDRESS...",
+		Short:                 desc,
+		Version:               version + " (build time " + buildTime + ")",
 		DisableFlagsInUseLine: true,
 
 		Args: func(cmd *cobra.Command, args []string) error {
