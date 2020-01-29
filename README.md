@@ -1,9 +1,9 @@
 # wf
 
 [![doc](https://img.shields.io/badge/godoc-reference-007c5b?style=flat)](https://godoc.org/github.com/bow/wf/wait)
-[![ci](https://img.shields.io/travis/bow/wf?labelColor=4d4d4d?color=007c5b&style=flat)](https://travis-ci.org/bow/wf)
-[![cov](https://img.shields.io/codeclimate/coverage/bow/wf?labelColor=4d4d4d?color=007c5b&style=flat)](https://codeclimate.com/github/bow/wf)
-[![qual](https://img.shields.io/codeclimate/maintainability/bow/wf?labelColor=4d4d4d?color=007c5b&style=flat)](https://codeclimate.com/github/bow/wf)
+[![ci](https://img.shields.io/travis/bow/wf?labelColor=4d4d4d&color=007c5b&style=flat)](https://travis-ci.org/bow/wf)
+[![cov](https://img.shields.io/codeclimate/coverage/bow/wf?labelColor=4d4d4d&color=007c5b&style=flat)](https://codeclimate.com/github/bow/wf)
+[![qual](https://img.shields.io/codeclimate/maintainability/bow/wf?labelColor=4d4d4d&color=007c5b&style=flat)](https://codeclimate.com/github/bow/wf)
 
 `wf` waits until TCP server(s) are ready to accept connections.
 
