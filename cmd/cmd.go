@@ -1,5 +1,5 @@
 // Package cmd provides the command line interface for the
-// https://godoc.org/github.com/bow/wait-for/wait package.
+// https://godoc.org/github.com/bow/wf/wait package.
 package cmd
 
 import (
@@ -9,11 +9,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/bow/wait-for/wait"
+	"github.com/bow/wf/wait"
 )
 
 const (
-	appName        = "wait-for"
+	appName        = "wf"
 	appVersion     = "0.0.0"
 	appDescription = "Wait until TCP server(s) are ready to accept connections"
 )

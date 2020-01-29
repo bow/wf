@@ -4,8 +4,8 @@
 ## Go
 
 # Binaries for programs and plugins
-wait-for
-!wait-for/
+wf
+!wf/
 c.out
 c.html
 *.exe
