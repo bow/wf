@@ -45,7 +45,13 @@ func Execute() error {
 		},
 
 		Run: func(cmd *cobra.Command, args []string) {
-			exitCode := run(cmd, args, waitTimeout, defaultPollFreq, isQuiet)
+			var rawAddrs []string
+			if dashIdx := cmd.ArgsLenAtDash(); dashIdx == -1 {
+				rawAddrs = args
+			} else {
+				rawAddrs = args[:dashIdx]
+			}
+			exitCode := run(rawAddrs, waitTimeout, defaultPollFreq, isQuiet)
 			if exitCode != 0 {
 				os.Exit(exitCode)
 			}
@@ -69,17 +75,10 @@ func Execute() error {
 
 // run calls the actual function for waiting.
 func run(
-	cmd *cobra.Command,
-	args []string,
+	rawAddrs []string,
 	waitTimeout, defaultPollFreq time.Duration,
 	isQuiet bool,
 ) int {
-	var rawAddrs []string
-	if dashIdx := cmd.ArgsLenAtDash(); dashIdx == -1 {
-		rawAddrs = args
-	} else {
-		rawAddrs = args[:dashIdx]
-	}
 
 	specs, err := wait.ParseTCPSpecs(rawAddrs, defaultPollFreq)
 	if err != nil {
