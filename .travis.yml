@@ -15,7 +15,7 @@ before_script:
   - ./cc-test-reporter before-build
 
 script:
-  - "go test -race -coverprofile c.out -v ./wait"
+  - "go test -race -coverprofile c.out -v ./..."
 
 after_success:
   - if [[ "$TRAVIS_PULL_REQUEST" == "false" ]]; then ./cc-test-reporter format-coverage --input-type gocov c.out; fi
