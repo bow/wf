@@ -104,7 +104,7 @@ func run(
 					"%7s: %s in %s",
 					wait.Ready,
 					msg.Target(),
-					msg.ElapsedTime(),
+					fmtElapsedTime(msg.ElapsedTime()),
 				)
 			case wait.Failed:
 				disp = fmt.Sprintf("%7s: %s", wait.Failed, msg.Err())
@@ -113,7 +113,7 @@ func run(
 			fmt.Println(disp)
 		}
 		showFinal = func(msg wait.Message) {
-			fmt.Printf("%7s: all ready in %s\n", "OK", msg.ElapsedTime())
+			fmt.Printf("%7s: all ready in %s\n", "OK", fmtElapsedTime(msg.ElapsedTime()))
 		}
 	}
 
