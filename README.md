@@ -1,5 +1,6 @@
 # wf
 
+[![latest](https://img.shields.io/github/v/release/bow/wf?labelColor=4d4d4d&color=007c5b&style=flat)](https://github.com/bow/wf/releases)
 [![doc](https://img.shields.io/badge/godoc-reference-007c5b?style=flat)](https://godoc.org/github.com/bow/wf/wait)
 [![ci](https://img.shields.io/travis/bow/wf?labelColor=4d4d4d&color=007c5b&style=flat)](https://travis-ci.org/bow/wf)
 [![cov](https://img.shields.io/codeclimate/coverage/bow/wf?labelColor=4d4d4d&color=007c5b&style=flat)](https://codeclimate.com/github/bow/wf)
