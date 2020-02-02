@@ -4,7 +4,7 @@
 ## Go
 
 # Binaries for programs and plugins
-wf
+wf*
 !wf/
 c.out
 c.html
