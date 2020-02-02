@@ -53,7 +53,7 @@ platforms may work but have not been tested.
     $ make test
 
     # Build the wf binary.
-    $ make wf
+    $ go build
 
 
 ## Credits
