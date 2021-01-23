@@ -1,0 +1,19 @@
+linters:
+  enable:
+    - dupl
+    - gofmt
+    - goimports
+    - maligned
+    - golint
+    - goconst
+    - nakedret
+  disable-all: false
+linters-setting:
+  lll:
+    line-length: 100
+  nestif:
+    min-complexity: 7
+issues:
+  include:
+    - EXC0002
+    - EXC0003

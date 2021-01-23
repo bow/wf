@@ -49,11 +49,15 @@ platforms may work but have not been tested.
     # Clone the repository.
     $ git clone https://github.com/bow/wf
 
-    # Run the tests.
+    # Install the development dependencies.
+    $ make dev
+
+    # Run the tests and/or linter.
     $ make test
+    $ make lint
 
     # Build the wf binary.
-    $ go build
+    $ make bin
 
 
 ## Credits

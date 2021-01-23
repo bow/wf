@@ -4,10 +4,9 @@
 ## Go
 
 # Binaries for programs and plugins
-wf*
-!wf/
-c.out
-c.html
+target/
+cov.out
+cov.html
 *.exe
 *.exe~
 *.dll
@@ -28,7 +27,6 @@ vendor/
 
 
 ## Misc
-
 .envrc
 .DS_Store
 *.swp
