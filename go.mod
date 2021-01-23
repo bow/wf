@@ -1,6 +1,6 @@
 module github.com/bow/wf
 
-go 1.13
+go 1.15
 
 require (
 	github.com/bow/wait-for v0.0.0-20200128180118-5c3c76a3c69b

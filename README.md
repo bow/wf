@@ -43,7 +43,7 @@ relevant GoDoc documentation for a complete documentation.
 
 ## Development
 
-`wf` was developed using Go go1.13 on linux/amd64. Other versions and/or
+`wf` was developed using Go 1.15 on linux/amd64. Other versions and/or
 platforms may work but have not been tested.
 
     # Clone the repository.
