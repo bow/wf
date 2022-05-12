@@ -193,15 +193,15 @@ func ParseTCPSpec(rawAddr string, defaultPollFreq time.Duration) (*TCPSpec, erro
 		groups["host"] = host
 		groups["port"] = port
 	} else if proto, hasProto = groups["proto"]; hasProto {
-		if port, knownProto := protoPort[strings.ToLower(proto)]; knownProto {
-			groups["host"] = rawHost
-			groups["port"] = port
-		} else {
+		port, knownProto := protoPort[strings.ToLower(proto)]
+		if !knownProto {
 			if proto == "" {
 				return nil, fmt.Errorf("neither port nor protocol is given")
 			}
 			return nil, fmt.Errorf("port not given and protocol is unknown: %q", proto)
 		}
+		groups["host"] = rawHost
+		groups["port"] = port
 	}
 
 	if rawFreq, hasFreq := groups["freq"]; hasFreq && rawFreq != "" {

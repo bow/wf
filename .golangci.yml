@@ -1,19 +1,137 @@
+go-version: &go-version "1.18"
+
 linters:
+  # commented linters are not yet supported in Go 1.18.
   enable:
+    - bidichk
+    # - bodyclose
+    # - contextcheck
     - dupl
+    - errchkjson
+    - errname
+    - exhaustive
+    - goconst
+    - gocritic
+    - godot
     - gofmt
     - goimports
-    - maligned
-    - golint
-    - goconst
+    - gosec
+    - ifshort
     - nakedret
+    # - nilerr
+    - prealloc
+    - revive
+    - staticcheck
+    - stylecheck
+    - thelper
+    # - tparallel
+    - unconvert
+    # - unparam
+    # - wastedassign
+  disable:
+    - structcheck
   disable-all: false
-linters-setting:
-  lll:
-    line-length: 100
-  nestif:
-    min-complexity: 7
+  exclude-use-default: false
+linters-settings:
+  govet:
+    check-shadowing: true
+    enable:
+      - assign
+      - copylocks
+      - deepequalerrors
+      - httpresponse
+      - ifaceassert
+      - loopclosure
+      - lostcancel
+      - nilfunc
+      - nilness
+      - stdmethods
+      - unmarshal
+  revive:
+    # See: https://github.com/mgechev/revive#available-rules
+    ignore-generated-header: true
+    severity: warning
+    rules:
+      - name: bare-return
+      - name: blank-imports
+      - name: bool-literal-in-expr
+      - name: cognitive-complexity
+        arguments: [20]
+      - name: confusing-naming
+      - name: confusing-results
+      - name: constant-logical-expr
+      - name: context-keys-type
+      - name: cyclomatic
+        arguments: [20]
+      - name: deep-exit
+      - name: defer
+      - name: dot-imports
+      - name: duplicated-imports
+      - name: early-return
+      - name: empty-block
+      - name: error-naming
+      - name: error-return
+      - name: error-strings
+      - name: errorf
+      - name: exported
+      - name: get-return
+      - name: identical-branches
+        severity: error
+      - name: if-return
+      - name: increment-decrement
+      - name: indent-error-flow
+      - name: import-shadowing
+      - name: line-length-limit
+        severity: error
+        arguments: [100]
+      - name: modifies-parameter
+      - name: nested-structs
+      - name: package-comments
+      - name: range
+      - name: range-val-in-closure
+      - name: range-val-address
+      - name: receiver-naming
+      - name: redefines-builtin-id
+        severity: error
+      - name: string-of-int
+      - name: struct-tag
+      - name: superfluous-else
+      - name: time-naming
+      - name: var-naming
+        arguments: [["ID"]]
+      - name: var-declaration
+      - name: unconditional-recursion
+      - name: unnecessary-stmt
+      - name: unreachable-code
+      - name: unused-parameter
+      - name: useless-break
+      - name: waitgroup-by-value
+  staticcheck:
+    go: *go-version
+  stylecheck:
+    go: *go-version
 issues:
   include:
     - EXC0002
     - EXC0003
+  exclude-rules:
+    # ctx can be specified as function param without it being used, by convention
+    - text: "parameter 'ctx' seems to be unused, consider removing"
+      linters: [revive]
+    # structs in tests are optimized for readability instead of memory alignment, so we exclude this linter.
+    - path: _test\.go
+      text: "fieldalignment"
+severity:
+  default-severity: major
+  rules:
+    - severity: info
+      linters:
+        - goimports
+        - thelper
+    - severity: minor
+      linters:
+        - dupl
+        - goconst
+        - tparallel
+        - unconvert
+        - unparam

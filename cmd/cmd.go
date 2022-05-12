@@ -21,6 +21,7 @@ var (
 	// These are meant to be overidden at built time using ldflags -X.
 	buildTime = "?"
 	version   = "dev"
+	gitCommit = "?"
 )
 
 // Execute peforms the actual CLI argument parsing and launches the wait operation.
@@ -29,13 +30,16 @@ func Execute() error {
 		waitTimeout     time.Duration
 		defaultPollFreq time.Duration
 		isQuiet         bool
+
+		ver = fmt.Sprintf("%s (build time: %s, commit: %s)", version, buildTime, gitCommit)
 	)
 
 	cmd := &cobra.Command{
 		Use:                   name + " [FLAGS] ADDRESS...",
 		Short:                 desc,
-		Version:               version + " (build time " + buildTime + ")",
+		Version:               ver,
 		DisableFlagsInUseLine: true,
+		SilenceErrors:         true,
 
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
@@ -53,7 +57,7 @@ func Execute() error {
 			}
 			exitCode := run(rawAddrs, waitTimeout, defaultPollFreq, isQuiet)
 			if exitCode != 0 {
-				os.Exit(exitCode)
+				os.Exit(exitCode) // nolint: revive
 			}
 		},
 	}

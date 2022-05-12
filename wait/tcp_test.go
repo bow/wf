@@ -312,7 +312,8 @@ func (srv *tcpServer) addr() string {
 func (srv *tcpServer) start(ctx context.Context) (context.Context, context.CancelFunc) {
 	ictx, icancel := context.WithCancel(ctx)
 
-	go func(addr string, delay time.Duration, gctx context.Context, t *testing.T) {
+	go func(gctx context.Context, t *testing.T, addr string, delay time.Duration) {
+		t.Helper()
 		select {
 		// Handle case when the goroutine needs to be killed prior to server start.
 		case <-gctx.Done():
@@ -334,14 +335,14 @@ func (srv *tcpServer) start(ctx context.Context) (context.Context, context.Cance
 				t.Logf("failed accepting TCP connection %q: %s", addr, err)
 				return
 			}
-			defer conn.Close()
 			select {
 			case <-gctx.Done():
+				conn.Close()
 				return
 			default:
 			}
 		}
-	}(srv.addr(), srv.readyDelay, ictx, srv.t)
+	}(ictx, srv.t, srv.addr(), srv.readyDelay)
 
 	return ictx, func() {
 		var addr = srv.addr()
@@ -555,7 +556,11 @@ func TestAllTCPTimeout(t *testing.T) {
 
 	// The last message's ElapsedTime must be at least equal to waitTimeout.
 	if elTime := mb.msgs[mb.count()-1].ElapsedTime(); elTime < waitTimeout {
-		t.Errorf("test failed - elapsed time %s is less than timeout limit of %s", elTime, waitTimeout)
+		t.Errorf(
+			"test failed - elapsed time %s is less than timeout limit of %s",
+			elTime,
+			waitTimeout,
+		)
 	}
 	// The last one must be a timeout failure.
 	if status := mb.msgs[mb.count()-1].Status(); status != Failed {
