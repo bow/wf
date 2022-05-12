@@ -1,33 +1,24 @@
-# Modified from https://github.com/github/gitignore/blob/master/Go.gitignore
+# Binary outputs
+bin/
 
+# Directory to ignore in CI to ensure builds are versioned as clean.
+.go/
+.netrc
 
-## Go
-
-# Binaries for programs and plugins
-target/
-cov.out
-cov.html
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
-
-# Test binary, built with `go test -c`
-*.test
-
-# Output of the go coverage tool, specifically when used with LiteIDE
+# Outputs of test-related tools
 *.out
+.coverage.out
+.coverage.xml
+.junit.xml
+coverage.html
 
-# Dependency directories
-vendor/
-
-# Local workspace directory
-.workspace
-
-
-## Misc
+# Misc
 .envrc
 .DS_Store
+.idea/
 *.swp
 *.swo
+.tool-versions
+.vscode
+*.pdf
+*.tgz
