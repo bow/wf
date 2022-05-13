@@ -44,6 +44,13 @@ jobs:
         run: |
           make test-cov-xml
 
+      - name: Upload test report
+        if: always()
+        uses: mikepenz/action-junit-report@v3
+        with:
+          check_name: Test report
+          report_paths: '**/.junit.xml'
+
       - name: Upload coverage
         uses: paambaati/codeclimate-action@v3.0.0
         env:
