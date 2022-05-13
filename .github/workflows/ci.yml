@@ -1,0 +1,71 @@
+---
+name: CI
+
+# Ensure only one job per branch.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  push:
+    branches: [master]
+    tags: ["*"]
+  pull_request:
+    branches: [master]
+    types: [opened, synchronize]
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Install Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: "1.18"
+          check-latest: true
+
+      - name: Setup cache
+        uses: actions/cache@v3
+        id: cache-go
+        with:
+          path: ~/go/pkg/mod
+          # yamllint disable-line rule:line-length
+          key: ${{ runner.os }}-${{ hashFiles('**/go.sum') }}
+
+      - name: Install and configure dependencies
+        run: |
+          make install-dev
+
+      - name: Run tests
+        run: |
+          make test-cov-xml
+
+      - name: Upload coverage
+        uses: paambaati/codeclimate-action@v3.0.0
+        env:
+          CC_TEST_REPORTER_ID: ${{ secrets.CC_TEST_REPORTER_ID }}
+        with:
+          coverageLocations: |
+            ${{ github.workspace }}/.coverage.xml:cobertura
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Install Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: "1.18"
+          check-latest: true
+
+      - name: Run linter
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: v1.46.0
