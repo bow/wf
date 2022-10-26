@@ -1,3 +1,6 @@
+// Copyright (c) 2019-2022 Wibowo Arindrarto <contact@arindrarto.dev>
+// SPDX-License-Identifier: BSD-3-Clause
+
 // Package main exposes the https://godoc.org/github.com/bow/wf/wait package as the wf command line
 // application.
 //

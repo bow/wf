@@ -1,4 +1,9 @@
-# Common development tasks.
+# Makefile for common development tasks.
+#
+# Copyright (c) 2015-2022 Wibowo Arindrarto <contact@arindrarto.dev>
+# SPDX-License-Identifier: BSD-3-Clause
+#
+# This file is part of wf <https://github.com/bow/wf>.
 
 # Cross-platform adjustments.
 SYS := $(shell uname 2> /dev/null)
